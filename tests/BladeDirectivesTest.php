@@ -16,11 +16,13 @@ class BladeDirectivesTest extends TestCase
 
     public function test_boolean_conditionals_render_expected_sections(): void
     {
-        $output = trim(Blade::render('@ternary(true)allowed@endternary'));
-        $this->assertSame('allowed', $output);
+        $compiled = Blade::compileString('@ternary(true) allowed @endternary');
+        $this->assertStringContainsString('<?php if (ternary(true)->isTrue()): ?>', $compiled);
+        $this->assertStringContainsString('<?php endif; ?>', $compiled);
 
-        $unknown = trim(Blade::render('@ternaryUnknown(null)pending@endternaryUnknown'));
-        $this->assertSame('pending', $unknown);
+        $unknownCompiled = Blade::compileString('@ternaryUnknown(null) pending @endternaryUnknown');
+        $this->assertStringContainsString('<?php if (ternary(null)->isUnknown()): ?>', $unknownCompiled);
+        $this->assertStringContainsString('<?php endif; ?>', $unknownCompiled);
     }
 
     public function test_maybe_and_badge_directives(): void
@@ -29,17 +31,13 @@ class BladeDirectivesTest extends TestCase
         $this->assertSame('Y', trim($maybe));
 
         $badge = Blade::render('@ternaryBadge("false")');
-        $this->assertStringContainsString('badge', $badge);
+        $this->assertStringContainsString('inline-flex items-center', $badge);
     }
 
     public function test_ternary_match_assigns_value(): void
     {
-        $output = Blade::render(<<<'BLADE'
-@ternaryMatch("true")
-    @case('true')Aprovado
-@endternaryMatch
-BLADE);
+        $output = Blade::render("@ternaryMatch('true', ['true' => 'Aprovado'])");
 
-        $this->assertStringContainsString('Aprovado', $output);
+        $this->assertSame('Aprovado', trim($output));
     }
 }

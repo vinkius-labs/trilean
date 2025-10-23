@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     image: trilean/app:latest
     container_name: trilean-app
-    working_dir: .
+    working_dir: /workspace
     environment:
       COMPOSER_MEMORY_LIMIT: "-1"
       COMPOSER_CACHE_DIR: /tmp/composer-cache

@@ -142,8 +142,52 @@ if (!function_exists('ternary_match')) {
     function ternary_match(mixed $value, array $cases): mixed
     {
         $state = TernaryState::fromMixed($value);
-
         $key = strtolower($state->value);
-        return $cases[$key] ?? $cases['unknown'] ?? null;
+
+        $match = $cases[$key] ?? ($cases['unknown'] ?? null);
+
+        if ($match !== null) {
+            return value($match, $state->value, $state);
+        }
+
+        if (array_key_exists('any', $cases)) {
+            return value($cases['any'], $state->value, $state);
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('ternary_badge')) {
+    /**
+     * Render a ternary badge using the package view helper.
+     */
+    function ternary_badge(mixed $state, array $options = []): string
+    {
+        $payload = array_merge(['state' => $state], $options);
+
+        return view('trilean::components.badge', $payload)->render();
+    }
+}
+
+if (!function_exists('ternary_icon')) {
+    /**
+     * Resolve icon markup for a ternary state.
+     */
+    function ternary_icon(mixed $value, ?string $trueIcon = null, ?string $falseIcon = null, ?string $unknownIcon = null): string
+    {
+        $state = TernaryState::fromMixed($value);
+
+        $defaults = config('trilean.ui.icons', []);
+        $overrides = array_filter([
+            'true' => $trueIcon,
+            'false' => $falseIcon,
+            'unknown' => $unknownIcon,
+        ], fn($icon) => $icon !== null && $icon !== '');
+
+        $icons = array_merge($defaults, $overrides);
+        $class = $icons[$state->value] ?? 'heroicon-o-question-mark-circle';
+
+        return '<i class="' . e($class) . '"></i>';
     }
 }

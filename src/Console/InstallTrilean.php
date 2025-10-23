@@ -8,9 +8,9 @@ use Illuminate\Support\Collection;
 
 class InstallTrilean extends Command
 {
-    protected $signature = 'trilean:install {preset=laravel : Nome do preset (laravel, lumen, octane)} {--force : Sobrescrever arquivos existentes} {--playground : Copiar playground de demonstração}';
+    protected $signature = 'trilean:install {preset=laravel : Preset name (laravel, lumen, octane)} {--force : Overwrite existing files} {--playground : Copy demo playground}';
 
-    protected $description = 'Publica configuração, recursos e stubs do Trilean e aplica o preset escolhido.';
+    protected $description = 'Publishes configuration, resources, and stubs for Trilean and applies the selected preset.';
 
     public function handle(): int
     {
@@ -21,18 +21,18 @@ class InstallTrilean extends Command
         $presets = config('trilean.presets', []);
 
         if (! isset($presets[$preset])) {
-            $this->error("Preset [{$preset}] não está configurado. Disponíveis: " . implode(', ', array_keys($presets)));
+            $this->error("Preset [{$preset}] is not configured. Available: " . implode(', ', array_keys($presets)));
 
             return static::FAILURE;
         }
 
-        $this->line('> Publicando configuração...');
+        $this->line('> Publishing configuration...');
         $this->call('vendor:publish', [
             '--tag' => 'trilean-config',
             '--force' => $force,
         ]);
 
-        $this->line('> Publicando recursos compartilhados...');
+        $this->line('> Publishing shared resources...');
         $this->call('vendor:publish', [
             '--tag' => 'trilean-resources',
             '--force' => $force,
@@ -41,20 +41,20 @@ class InstallTrilean extends Command
         $resources = Collection::make($presets[$preset]['resources'] ?? []);
         $filesystem = app(Filesystem::class);
 
-        $this->line('> Aplicando preset: ' . $preset);
+        $this->line('> Applying preset: ' . $preset);
 
         $resources->each(function (string $destination, string $source) use ($filesystem, $force) {
             $target = base_path($destination);
 
             if ($filesystem->exists($target) && ! $force) {
-                $this->warn(" - Ignorado (já existe): {$target}");
+                $this->warn(" - Skipped (already exists): {$target}");
 
                 return;
             }
 
             $filesystem->ensureDirectoryExists(dirname($target));
             $filesystem->copy($source, $target);
-            $this->info(" - Copiado: {$destination}");
+            $this->info(" - Copied: {$destination}");
         });
 
         if ($playground) {
@@ -62,15 +62,15 @@ class InstallTrilean extends Command
         }
 
         $this->newLine();
-        $this->info('Trilean instalado com sucesso 🎉');
-        $this->comment('Execute npm install && npm run dev para compilar assets TypeScript, se aplicável.');
+        $this->info('Trilean installed successfully 🎉');
+        $this->comment('Run npm install && npm run dev to compile TypeScript assets when applicable.');
 
         return static::SUCCESS;
     }
 
     private function publishPlayground(Filesystem $filesystem, bool $force): void
     {
-        $this->line('> Publicando playground...');
+        $this->line('> Publishing playground...');
 
         $playground = config('trilean.playground', []);
 
@@ -83,26 +83,26 @@ class InstallTrilean extends Command
                 }
 
                 if ($filesystem->exists($target) && ! $force) {
-                    $this->warn(" - Ignorado (já existe): {$relativeTarget}");
+                    $this->warn(" - Skipped (already exists): {$relativeTarget}");
 
                     continue;
                 }
 
                 $filesystem->copyDirectory($source, $target);
-                $this->info(" - Diretório copiado: {$relativeTarget}");
+                $this->info(" - Directory copied: {$relativeTarget}");
 
                 continue;
             }
 
             if ($filesystem->exists($target) && ! $force) {
-                $this->warn(" - Ignorado (já existe): {$relativeTarget}");
+                $this->warn(" - Skipped (already exists): {$relativeTarget}");
 
                 continue;
             }
 
             $filesystem->ensureDirectoryExists(dirname($target));
             $filesystem->copy($source, $target);
-            $this->info(" - Arquivo copiado: {$relativeTarget}");
+            $this->info(" - File copied: {$relativeTarget}");
         }
     }
 }

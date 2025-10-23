@@ -1,12 +1,12 @@
 {
-    "name": "VinkiusLabs/trilean",
-    "description": "Next-generation ternary logic engine for Laravel with decision pipelines, balanced ternary math and expressive ergonomics.",
+    "name": "vinkius-labs/trilean",
+    "description": "Trilean is a Laravel package that pushes ternary logic beyond the classic true/false/unknown paradigm. Inspired by balanced-ternary computing principles—including trits, three-state logic gates, and ternary arithmetic.",
     "type": "library",
     "license": "MIT",
     "authors": [
         {
             "name": "Renato Marinho",
-            "email": "renato@example.com"
+            "email": "renato.marinho@gitscrum.com"
         }
     ],
     "require": {

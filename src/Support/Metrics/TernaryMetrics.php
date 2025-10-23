@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Laravel\Telescope\Telescope;
 use Prometheus\CollectorRegistry;
+use Throwable;
 use VinkiusLabs\Trilean\Decision\TernaryDecisionReport;
 use VinkiusLabs\Trilean\Enums\TernaryState;
 use VinkiusLabs\Trilean\Events\TernaryDecisionEvaluated;
@@ -59,13 +60,28 @@ class TernaryMetrics
             $prefix = $drivers['horizon']['prefix'] ?? 'horizon:';
             $key = $prefix . 'metrics:trilean';
 
-            Redis::connection($connection)->pipeline(function ($pipe) use ($key, $report): void {
-                $pipe->hincrby($key, 'count:' . $report->result()->value, 1);
-                $metadata = $report->metadata();
-                if (isset($metadata['duration_ms'])) {
-                    $pipe->hincrbyfloat($key, 'duration:' . $report->result()->value, (float) $metadata['duration_ms']);
+            $connections = config('database.redis', []);
+
+            if (! array_key_exists($connection, $connections)) {
+                Log::debug('Trilean metrics horizon driver skipped: redis connection missing.', [
+                    'connection' => $connection,
+                ]);
+            } else {
+                try {
+                    Redis::connection($connection)->pipeline(function ($pipe) use ($key, $report): void {
+                        $pipe->hincrby($key, 'count:' . $report->result()->value, 1);
+                        $metadata = $report->metadata();
+                        if (isset($metadata['duration_ms'])) {
+                            $pipe->hincrbyfloat($key, 'duration:' . $report->result()->value, (float) $metadata['duration_ms']);
+                        }
+                    });
+                } catch (Throwable $exception) {
+                    Log::debug('Trilean metrics horizon driver skipped: redis operation failed.', [
+                        'connection' => $connection,
+                        'exception' => $exception->getMessage(),
+                    ]);
                 }
-            });
+            }
         }
 
         if (! empty($drivers['telescope']['enabled']) && class_exists(Telescope::class) && method_exists(Telescope::class, 'recordLog')) {
@@ -88,14 +104,14 @@ class TernaryMetrics
             $counter = $registry->getOrRegisterCounter(
                 $namespace,
                 'decisions_total',
-                'Total de decisões ternárias emitidas',
+                'Total ternary decisions emitted',
                 array_keys($tags) ?: ['state']
             );
 
             $histogram = $registry->getOrRegisterHistogram(
                 $namespace,
                 'decision_duration_ms',
-                'Duração das decisões ternárias em ms',
+                'Duration of ternary decisions in ms',
                 array_keys($tags) ?: ['state']
             );
 

@@ -100,13 +100,30 @@ class TernaryArithmetic
             return [];
         }
 
-        $unknowns = count(array_filter($values, fn($v) => TernaryState::fromMixed($v)->isUnknown()));
+        $states = array_map(fn($v) => TernaryState::fromMixed($v), $values);
+
+        $unknowns = count(array_filter($states, fn(TernaryState $state) => $state->isUnknown()));
 
         if ($unknowns / $total > $threshold) {
-            $consensus = collect($values)->filter(fn($v) => !TernaryState::fromMixed($v)->isUnknown())->mode();
-            return array_fill(0, $total, $consensus[0] ?? TernaryState::UNKNOWN);
+            $signals = collect($states)
+                ->reject(fn(TernaryState $state) => $state->isUnknown())
+                ->values();
+
+            if ($signals->isEmpty()) {
+                return array_fill(0, $total, TernaryState::UNKNOWN);
+            }
+
+            $dominantKey = $signals
+                ->countBy(fn(TernaryState $state) => $state->value)
+                ->sortDesc()
+                ->keys()
+                ->first();
+
+            $dominantState = TernaryState::fromMixed($dominantKey);
+
+            return array_fill(0, $total, $dominantState);
         }
 
-        return $values;
+        return $states;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace VinkiusLabs\Trilean;
 
+use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Support\ServiceProvider;
 use VinkiusLabs\Trilean\Console\DoctorTrilean;
 use VinkiusLabs\Trilean\Console\InstallTrilean;
@@ -14,6 +15,7 @@ use VinkiusLabs\Trilean\Support\TernaryArithmetic;
 use VinkiusLabs\Trilean\Services\TernaryExpressionEvaluator;
 use VinkiusLabs\Trilean\Services\TernaryLogicService;
 use VinkiusLabs\Trilean\Support\BalancedTernaryConverter;
+use VinkiusLabs\Trilean\Support\Gate\MacroableGate;
 use VinkiusLabs\Trilean\Support\GateMacros;
 use VinkiusLabs\Trilean\Support\Metrics\TernaryMetrics;
 use VinkiusLabs\Trilean\Validation\TernaryValidationRules;
@@ -54,6 +56,10 @@ class TernaryLogicServiceProvider extends ServiceProvider
         $this->app->bind(CircuitBuilder::class, fn($app) => new CircuitBuilder(
             logic: $app->make(TernaryLogicService::class)
         ));
+
+        $this->app->extend(GateContract::class, function ($gate, $app) {
+            return $gate instanceof MacroableGate ? $gate : MacroableGate::fromGate($gate);
+        });
     }
 
     public function boot(): void

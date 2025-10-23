@@ -16,43 +16,43 @@ use function function_exists;
 
 class DoctorTrilean extends Command
 {
-    protected $signature = 'trilean:doctor {--json : Retorna o diagnóstico em JSON}';
+    protected $signature = 'trilean:doctor {--json : Returns the diagnostics as JSON}';
 
-    protected $description = 'Executa verificações de saúde da instalação do Trilean.';
+    protected $description = 'Runs health checks for the Trilean installation.';
 
     public function handle(): int
     {
         $checks = collect([
             'service_provider' => [
-                'label' => 'Service Provider registrado',
+                'label' => 'Service provider registered',
                 'status' => app()->getProvider('VinkiusLabs\\Trilean\\TernaryLogicServiceProvider') !== null,
             ],
             'helpers' => [
-                'label' => 'Helpers globais disponíveis',
+                'label' => 'Global helpers available',
                 'status' => function_exists('trilean') && function_exists('ternary'),
             ],
             'collection_macros' => [
-                'label' => 'Collection macros registradas',
+                'label' => 'Collection macros registered',
                 'status' => SupportCollection::hasMacro('ternaryConsensus'),
             ],
             'request_macros' => [
-                'label' => 'Request macros registradas',
+                'label' => 'Request macros registered',
                 'status' => Request::hasMacro('ternary'),
             ],
             'gate_macros' => [
-                'label' => 'Gate macros registradas',
-                'status' => method_exists(Gate::getFacadeRoot(), 'hasMacro') ? Gate::hasMacro('defineTernary') : false,
+                'label' => 'Gate macros registered',
+                'status' => ($gate = Gate::getFacadeRoot()) && method_exists($gate, 'defineTernary'),
             ],
             'form_request' => [
-                'label' => 'Classe base TernaryFormRequest acessível',
+                'label' => 'TernaryFormRequest base class available',
                 'status' => class_exists('VinkiusLabs\\Trilean\\Support\\FormRequests\\TernaryFormRequest'),
             ],
             'config_published' => [
-                'label' => 'Configuração publicada',
+                'label' => 'Configuration published',
                 'status' => file_exists(base_path('config/trilean.php')),
             ],
             'metrics_enabled' => [
-                'label' => 'Métricas habilitadas',
+                'label' => 'Metrics enabled',
                 'status' => (bool) config('trilean.metrics.enabled'),
             ],
         ]);
@@ -63,24 +63,24 @@ class DoctorTrilean extends Command
             return static::SUCCESS;
         }
 
-        $this->table(['Verificação', 'Status'], $checks->map(function ($check) {
+        $this->table(['Check', 'Status'], $checks->map(function ($check) {
             return [$check['label'], $check['status'] ? '✅' : '❌'];
         }));
 
         $metrics = collect(config('trilean.metrics.drivers', []))->map(function ($driver, $name) {
             return [
                 Str::headline($name),
-                ! empty($driver['enabled']) ? 'habilitado' : 'desabilitado',
+                ! empty($driver['enabled']) ? 'enabled' : 'disabled',
             ];
         });
 
         if ($metrics->isNotEmpty()) {
-            $this->line('Drivers de métricas:');
-            $this->table(['Driver', 'Estado'], $metrics->toArray());
+            $this->line('Metrics drivers:');
+            $this->table(['Driver', 'Status'], $metrics->toArray());
         }
 
         $this->newLine();
-        $this->info('Para inspetores adicionais use php artisan inspire ou php artisan list | grep trilean');
+        $this->info('For additional inspectors run php artisan inspire or php artisan list | grep trilean');
 
         return static::SUCCESS;
     }

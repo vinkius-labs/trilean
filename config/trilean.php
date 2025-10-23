@@ -17,11 +17,11 @@ return [
     'policies' => [
         'unknown_resolves_to' => false,
         'throw_on_unknown' => false,
-        'unknown_message' => 'Esta decisão ainda está pendente.',
+        'unknown_message' => 'This decision is still pending.',
     ],
 
     'metrics' => [
-        'enabled' => env('TRILEAN_METRICS', true),
+        'enabled' => env('TRILEAN_METRICS', false),
         'default_tags' => [
             'app' => env('APP_NAME', 'laravel'),
         ],
@@ -33,7 +33,7 @@ return [
                 'enabled' => env('TRILEAN_TELESCOPE_EXPORT', true),
             ],
             'horizon' => [
-                'enabled' => env('TRILEAN_HORIZON_EXPORT', true),
+                'enabled' => env('TRILEAN_HORIZON_EXPORT', false),
                 'connection' => env('HORIZON_REDIS_CONNECTION', 'horizon'),
                 'prefix' => env('HORIZON_PREFIX', 'horizon:'),
             ],
@@ -47,7 +47,7 @@ return [
 
     'presets' => [
         'laravel' => [
-            'description' => 'Preset padrão para aplicações Laravel full stack.',
+            'description' => 'Default preset for full-stack Laravel applications.',
             'resources' => [
                 __DIR__ . '/../resources/stubs/feature-flag.stub' => 'stubs/trilean/feature-flag.stub',
                 __DIR__ . '/../resources/stubs/compliance.stub' => 'stubs/trilean/compliance.stub',
@@ -58,13 +58,13 @@ return [
             ],
         ],
         'lumen' => [
-            'description' => 'Preset enxuto para microserviços Lumen.',
+            'description' => 'Lean preset for Lumen microservices.',
             'resources' => [
                 __DIR__ . '/../resources/stubs/feature-flag.stub' => 'stubs/trilean/feature-flag.stub',
             ],
         ],
         'octane' => [
-            'description' => 'Preset otimizado para servidores Octane.',
+            'description' => 'Preset optimized for Octane workloads.',
             'resources' => [
                 __DIR__ . '/../resources/stubs/feature-flag.stub' => 'stubs/trilean/feature-flag.stub',
                 __DIR__ . '/../resources/stubs/compliance.stub' => 'stubs/trilean/compliance.stub',

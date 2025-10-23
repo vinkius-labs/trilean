@@ -29,13 +29,15 @@ class TernaryDecisionEngine
 
             $values = $this->resolveOperands($operands, $inputs, $decisions);
 
+            $expressionContext = array_merge($context, $inputs->toArray());
+
             $state = match ($operator) {
                 'and' => $this->logic->and(...$values),
                 'or' => $this->logic->or(...$values),
                 'not' => $this->logic->not($values[0] ?? TernaryState::UNKNOWN),
                 'consensus' => $this->logic->consensus($values),
                 'weighted' => $this->logic->weighted($values, $gate['weights'] ?? []),
-                'expression' => $this->logic->expression($gate['expression'] ?? '', $inputs->merge($context)->toArray()),
+                'expression' => $this->logic->expression($gate['expression'] ?? '', $expressionContext),
                 default => $this->logic->and(...$values),
             };
 

@@ -3,7 +3,6 @@
 namespace VinkiusLabs\Trilean\View;
 
 use Illuminate\Support\Facades\Blade;
-use VinkiusLabs\Trilean\Enums\TernaryState;
 
 class BladeDirectives
 {
@@ -18,9 +17,9 @@ class BladeDirectives
          *     <div>User is not verified or unknown</div>
          * @endternary
          */
-        Blade::if('ternary', function ($value) {
-            return ternary($value)->isTrue();
-        });
+        Blade::directive('ternary', fn($expression) => "<?php if (ternary({$expression})->isTrue()): ?>");
+        Blade::directive('elseternary', fn() => '<?php else: ?>');
+        Blade::directive('endternary', fn() => '<?php endif; ?>');
 
         /**
          * @ternaryTrue - check if value is TRUE.
@@ -29,16 +28,14 @@ class BladeDirectives
          *     <span class="badge-success">Active</span>
          * @endternaryTrue
          */
-        Blade::if('ternaryTrue', function ($value) {
-            return ternary($value)->isTrue();
-        });
+        Blade::directive('ternaryTrue', fn($expression) => "<?php if (ternary({$expression})->isTrue()): ?>");
+        Blade::directive('endternaryTrue', fn() => '<?php endif; ?>');
 
         /**
          * @ternaryFalse - check if value is FALSE.
          */
-        Blade::if('ternaryFalse', function ($value) {
-            return ternary($value)->isFalse();
-        });
+        Blade::directive('ternaryFalse', fn($expression) => "<?php if (ternary({$expression})->isFalse()): ?>");
+        Blade::directive('endternaryFalse', fn() => '<?php endif; ?>');
 
         /**
          * @ternaryUnknown - check if value is UNKNOWN.
@@ -47,9 +44,8 @@ class BladeDirectives
          *     <div class="alert alert-warning">Consent pending</div>
          * @endternaryUnknown
          */
-        Blade::if('ternaryUnknown', function ($value) {
-            return ternary($value)->isUnknown();
-        });
+        Blade::directive('ternaryUnknown', fn($expression) => "<?php if (ternary({$expression})->isUnknown()): ?>");
+        Blade::directive('endternaryUnknown', fn() => '<?php endif; ?>');
 
         /**
          * @maybe directive - three-way conditional rendering.
@@ -62,28 +58,24 @@ class BladeDirectives
         });
 
         /**
-         * @ternaryMatch - pattern matching in blade.
+         * @ternaryMatch - lightweight pattern matching helper.
          * 
-         * @ternaryMatch($user->status)
-         *     @case('true')
-         *         <span class="text-success">Approved</span>
-         *     @case('false')
-         *         <span class="text-danger">Rejected</span>
-         *     @case('unknown')
-         *         <span class="text-warning">Pending</span>
-         * @endternaryMatch
+         * @ternaryMatch($user->status, [
+         *     'true' => '<span class="text-success">Approved</span>',
+         *     'false' => '<span class="text-danger">Rejected</span>',
+         *     'unknown' => '<span class="text-warning">Pending</span>',
+         * ])
          */
         Blade::directive('ternaryMatch', function ($expression) {
-            return "<?php \$__ternaryMatchValue = ternary({$expression})->value; ?>";
+            [$value, $cases] = array_pad(explode(',', $expression, 2), 2, '[]');
+
+            $value = trim($value);
+            $cases = trim($cases);
+
+            return "<?php echo ternary_match({$value}, {$cases}); ?>";
         });
 
-        Blade::directive('case', function ($expression) {
-            return "<?php if (\$__ternaryMatchValue === {$expression}): ?>";
-        });
-
-        Blade::directive('endternaryMatch', function () {
-            return "<?php endif; unset(\$__ternaryMatchValue); ?>";
-        });
+        Blade::directive('endternaryMatch', fn() => '');
 
         /**
          * @ternaryBadge - render a styled badge based on ternary state.
@@ -92,7 +84,7 @@ class BladeDirectives
          * Outputs: <span class="badge badge-success">True</span>
          */
         Blade::directive('ternaryBadge', function ($expression) {
-            return "<?php echo view('trilean::components.badge', ['state' => {$expression}])->render(); ?>";
+            return "<?php echo ternary_badge({$expression}); ?>";
         });
 
         /**
@@ -101,25 +93,7 @@ class BladeDirectives
          * @ternaryIcon($permission, 'check', 'times', 'question')
          */
         Blade::directive('ternaryIcon', function ($expression) {
-            return <<<'PHP'
-<?php 
-    $parts = array_map('trim', explode(',', $expression));
-    $value = array_shift($parts);
-    $state = ternary($value);
-    $icons = config('trilean.ui.icons');
-
-    if (count($parts) === 3) {
-        $icons = [
-            'true' => trim($parts[0], " '""),
-            'false' => trim($parts[1], " '""),
-            'unknown' => trim($parts[2], " '""),
-        ];
-    }
-
-    $iconClass = $icons[$state->value] ?? 'icon-question-mark-circle';
-    echo "<i class='{$iconClass}'></i>";
-?>
-PHP;
+            return "<?php echo ternary_icon({$expression}); ?>";
         });
 
         /**
@@ -129,15 +103,29 @@ PHP;
          *     <button>Proceed</button>
          * @endallTrue
          */
-        Blade::if('allTrue', function ($values) {
-            return all_true(...(is_array($values) ? $values : [$values]));
+        Blade::directive('allTrue', function ($expression) {
+            $values = '$__ternaryAllTrueValues';
+
+            return <<<PHP
+<?php
+    {$values} = {$expression};
+    if (all_true(...(is_array({$values}) ? {$values} : [{$values}]))): ?>
+PHP;
         });
+        Blade::directive('endallTrue', fn() => '<?php endif; unset($__ternaryAllTrueValues); ?>');
 
         /**
          * @anyTrue - check if any value is TRUE.
          */
-        Blade::if('anyTrue', function ($values) {
-            return any_true(...(is_array($values) ? $values : [$values]));
+        Blade::directive('anyTrue', function ($expression) {
+            $values = '$__ternaryAnyTrueValues';
+
+            return <<<PHP
+<?php
+    {$values} = {$expression};
+    if (any_true(...(is_array({$values}) ? {$values} : [{$values}]))): ?>
+PHP;
         });
+        Blade::directive('endanyTrue', fn() => '<?php endif; unset($__ternaryAnyTrueValues); ?>');
     }
 }

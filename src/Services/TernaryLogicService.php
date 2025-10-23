@@ -58,14 +58,34 @@ class TernaryLogicService
     public function xor(mixed ...$values): TernaryState
     {
         $vector = $this->vector($values);
+        if ($vector->contains(fn(TernaryState $state) => $state->isUnknown())) {
+            return TernaryState::UNKNOWN;
+        }
+
         $positives = $vector->filter(fn(TernaryState $state) => $state->isTrue())->count();
         $negatives = $vector->filter(fn(TernaryState $state) => $state->isFalse())->count();
+
+        if ($positives === 0 && $negatives === 0) {
+            return TernaryState::UNKNOWN;
+        }
+
+        if ($positives === 0) {
+            return TernaryState::FALSE;
+        }
+
+        if ($negatives === 0) {
+            return TernaryState::TRUE;
+        }
 
         if ($positives === $negatives) {
             return TernaryState::UNKNOWN;
         }
 
-        return $positives > $negatives ? TernaryState::TRUE : TernaryState::FALSE;
+        if ($negatives > $positives) {
+            return TernaryState::UNKNOWN;
+        }
+
+        return TernaryState::TRUE;
     }
 
     public function not(mixed $value): TernaryState

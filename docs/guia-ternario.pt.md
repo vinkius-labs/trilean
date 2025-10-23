@@ -1,102 +1,237 @@
-# 📘 Guía Trilean em Português
+# 📘 Guia Trilean em Português
 
-## Visão Geral
-Trilean oferece uma abordagem de computação ternária para aplicações Laravel. Em vez de alternar apenas entre verdadeiro/falso, cada decisão passa a reconhecer estados `TRUE`, `FALSE` e `UNKNOWN`, evitando condicionais frágeis e estados inconsistentes.
+## 🎯 Visão Geral
+Trilean traz **computação ternária** para Laravel. Cada decisão abraça `TRUE`, `FALSE` e `UNKNOWN`, eliminando surpresas causadas por incompatibilidades de valores nulos/fonte da verdade.
 
-## Antes e Depois
-### Cenário: Liberação de um recurso premium
-**Antes (booleanos clássicos)**
+**Por que Trilean?**
+- 🔒 **Type-safe** lógica de três estados (sem mais bugs de `null`)
+- 🚀 **Zero boilerplate** com helpers globais e macros
+- 🎨 **Expressivo** diretivas Blade e regras de validação
+- 📊 **Observabilidade** com métricas e rastreamento de decisões integrados
+- 🧮 **Avançado** consenso, votação ponderada e aritmética balanceada
+
+---
+
+## 🔄 Antes vs Depois
+
+### Cenário 1: Onboarding de Usuário
+**❌ Antes (caos booleano)**
 ```php
-if ($user->verified && $user->consent && !$user->blocked) {
-    return 'liberado';
+// Bugs ocultos: e se verified for NULL?
+if ($user->verified && $user->email_confirmed && $user->terms_accepted) {
+    $user->activate();
+    return redirect('/dashboard');
 }
 
-return 'negado';
+// Sem visibilidade do PORQUÊ eles não podem prosseguir
+return back()->with('error', 'Não é possível ativar a conta');
 ```
 
-**Depois (Trilean)**
+**✅ Depois (clareza Trilean)**
 ```php
-if (all_true($user->verified, $user->consent, !$user->blocked)) {
-    return 'liberado';
+if (all_true($user->verified, $user->email_confirmed, $user->terms_accepted)) {
+    $user->activate();
+    return redirect('/dashboard');
 }
 
-return ternary_match(false, [
-    'true' => 'liberado',
-    'false' => 'negado',
-    'unknown' => 'analisar',
-]);
+// Tratamento explícito de cada estado
+return maybe(
+    consensus($user->verified, $user->email_confirmed, $user->terms_accepted),
+    ifTrue: fn() => redirect('/dashboard'),
+    ifFalse: fn() => back()->with('error', 'Requisitos não atendidos'),
+    ifUnknown: fn() => redirect('/verificacao-pendente')
+);
 ```
-A lógica continua enxuta, mas agora o estado desconhecido é tratado explicitamente.
 
-### Cenário: Aprovação multi-etapas
-**Antes**
+### Cenário 2: Feature Flags com Rollout
+**❌ Antes (condicionais complexas)**
+```php
+$podeAcessarBeta = false;
+
+if ($user->is_beta_tester) {
+    $podeAcessarBeta = true;
+} elseif ($user->plan === 'enterprise' && $feature->rollout_percent > 50) {
+    $podeAcessarBeta = rand(1, 100) <= $feature->rollout_percent;
+} elseif ($feature->enabled === null) {
+    // O que null significa? Estado desconhecido leva a bugs
+    $podeAcessarBeta = false;
+}
+
+if ($podeAcessarBeta) {
+    return view('beta.dashboard');
+} else {
+    return view('standard.dashboard');
+}
+```
+
+**✅ Depois (motor de decisão Trilean)**
+```php
+$estado = ternary_match(
+    consensus(
+        $user->is_beta_tester,
+        $user->plan === 'enterprise' && $feature->rollout_percent > 50,
+        $feature->enabled
+    ),
+    [
+        'true' => 'concedido',
+        'false' => 'negado',
+        'unknown' => 'aguardando_rollout'
+    ]
+);
+
+return when_ternary(
+    $estado,
+    onTrue: fn() => view('beta.dashboard'),
+    onFalse: fn() => view('standard.dashboard'),
+    onUnknown: fn() => view('pending.dashboard')
+);
+```
+
+### Cenário 3: Fluxo de Aprovação
+**❌ Antes (condicionais aninhadas)**
 ```php
 if (!$doc->legal_approved) {
-    return 'aguardando jurídico';
+    return ['status' => 'pendente', 'motivo' => 'revisão jurídica'];
 }
 
 if (!$doc->finance_approved) {
-    return 'aguardando financeiro';
+    return ['status' => 'pendente', 'motivo' => 'revisão financeira'];
 }
 
-return 'publicado';
+if (!$doc->manager_approved) {
+    return ['status' => 'pendente', 'motivo' => 'aprovação do gerente'];
+}
+
+// Todos aprovados - mas e se um for null?
+return ['status' => 'publicado'];
 ```
 
-**Depois**
+**✅ Depois (consenso ponderado Trilean)**
 ```php
 $estado = collect([
-    $doc->legal_approved,
-    $doc->finance_approved,
-    $doc->manager_approved,
-])->ternaryWeighted([5, 3, 2]);
+    'juridico' => $doc->legal_approved,
+    'financeiro' => $doc->finance_approved,
+    'gerente' => $doc->manager_approved,
+])->ternaryWeighted([5, 3, 2]); // Jurídico tem mais peso
 
 return ternary_match($estado, [
-    'true' => 'publicado',
-    'false' => 'bloqueado',
-    'unknown' => 'aguardando conferências',
+    'true' => ['status' => 'publicado', 'aprovado_por' => 'todos'],
+    'false' => ['status' => 'rejeitado', 'motivo' => 'falha_aprovacao'],
+    'unknown' => ['status' => 'em_revisao', 'departamentos_pendentes' => $this->getDepartamentosPendentes()],
 ]);
 ```
-Aqui aplicamos pesos diferenciados e mantemos rastreamento de estado.
 
-## Recursos Técnicos
+---
+
+## 📚 Recursos Técnicos
+
+Veja a documentação detalhada em inglês para exemplos completos de cada recurso: [English Guide](./ternary-guide.en.md)
+
 ### 1. 🔥 Helpers Globais (10 funções)
-- `ternary()` – Converte qualquer valor para `TernaryState` usando `TernaryState::fromMixed`, garantindo normalização consistente.
-- `maybe()` – Implementa ramificação ternária com `match`, aceitando callbacks lazy; ideal para respostas HTTP.
-- `trilean()` – Retorna a instância `TernaryLogicService` via service container (`app('trilean.logic')`).
-- `ternary_vector()` – Cria `TernaryVector`, que encapsula coleções de estados com operações matemáticas.
-- `all_true()` – Avalia com `TernaryLogicService::and` e retorna bool com `isTrue()`.
-- `any_true()` – Usa `TernaryLogicService::or` para detectar estados positivos.
-- `none_false()` – Garante ausência de `FALSE` combinando `or()` e `and()`.
-- `when_ternary()` – Executa callbacks conforme o resultado de `TernaryState`, centralizando efeitos colaterais.
-- `consensus()` – Calcula consenso com `TernaryLogicService::consensus`, ótimo para votações.
-- `ternary_match()` – Pattern matching que normaliza estados e consulta mapa associativo.
+- `ternary()` - Conversão inteligente para TernaryState
+- `maybe()` - Ramificação em três vias
+- `trilean()` - Acesso ao serviço principal
+- `ternary_vector()` - Operações matemáticas em coleções
+- `all_true()` / `any_true()` - Portas lógicas
+- `none_false()` - Garantir ausência de FALSE
+- `consensus()` - Decisões democráticas
+- `when_ternary()` - Execução condicional
+- `ternary_match()` - Pattern matching
 
-### 2. 💎 Collection Macros (12 métodos)
-As macros são registradas em runtime no `ServiceProvider` e permitem operações declarativas:
-- `ternaryConsensus()` / `ternaryMajority()` – Empacotam `TernaryVector` para usar consenso ou maioria com pesos iguais.
-- `whereTernaryTrue/False/Unknown()` – Filtram coleções com `ternary()` e `data_get`, garantindo compatibilidade com arrays/objetos.
-- `ternaryWeighted()` – Chama `trilean()->weighted`, aceitando pesos dinamicamente.
-- `ternaryMap()` – Converte o resultado do `map` em `TernaryVector` para operações subsequentes.
-- `ternaryScore()` – Soma os valores balanceados (`+1`, `0`, `-1`).
-- `allTernaryTrue()` / `anyTernaryTrue()` – Simplificam portas lógicas sem sair da collection.
-- `partitionTernary()` – Retorna três coleções independentes, útil para dashboards.
-- `ternaryGate()` – Encapsula AND/OR/XOR/consensus usando a infraestrutura do serviço.
+### 2. 💎 Macros de Collection (12 métodos)
+- `ternaryConsensus()` / `ternaryMajority()`
+- `whereTernaryTrue/False/Unknown()`
+- `ternaryWeighted()` - Votação ponderada
+- `ternaryMap()` - Mapeamento ternário
+- `ternaryScore()` - Pontuação balanceada
+- `allTernaryTrue()` / `anyTernaryTrue()`
+- `partitionTernary()` - Divisão em três grupos
+- `ternaryGate()` - Portas lógicas flexíveis
 
-### 3. 🗄️ Eloquent Scopes (8 métodos)
-- `whereTernaryTrue/False/Unknown()` – Traduzem estados ternários para consultas SQL com `orWhere` e normalização.
-- `orderByTernary()` – Usa `CASE` customizado para ordenar priorizando `TRUE` > `UNKNOWN` > `FALSE`.
-- `whereAllTernaryTrue()` / `whereAnyTernaryTrue()` – Combinam múltiplas colunas chamando os escopos anteriores.
-- `ternaryConsensus()` – Filtra coleções já carregadas mapeando os estados e aplicando `trilean()->consensus()`.
+### 3. 🗄️ Scopes Eloquent (8 métodos)
+- `whereTernaryTrue/False/Unknown()`
+- `orderByTernary()` - Ordenação inteligente
+- `whereAllTernaryTrue()` / `whereAnyTernaryTrue()`
+- `ternaryConsensus()`
 
-### 4. 🌐 Request Macros (5 métodos)
-- `ternary()` – Normaliza inputs diretamente do request.
-- `hasTernaryTrue/False/Unknown()` – Ajudam a validar flags vindas de formulários.
-- `ternaryGate()` – Executa portas AND/OR/consensus sobre múltiplos campos do request.
-- `ternaryExpression()` – Avalia expressões DSL com o payload completo (`$request->all()`).
+### 4. 🌐 Macros de Request (5 métodos)
+- `ternary()` - Normalização de input
+- `hasTernaryTrue/False/Unknown()`
+- `ternaryGate()` - Validação multi-campo
+- `ternaryExpression()`
 
-### 5. 🎨 Blade Directives (10+)
-Diretivas registradas via `Blade::if` e `Blade::directive`, fornecendo sintaxe declarativa:
-- `@ternary`, `@ternaryTrue/False/Unknown` – Condicionais sem precisar replicar helpers.
+### 5. 🎨 Diretivas Blade (10+)
+- `@ternaryTrue/False/Unknown`
+- `@ternaryMatch` - Pattern matching em templates
+- `@allTrue` / `@anyTrue`
+- `@ternaryBadge` / `@ternaryIcon`
+
+### 6. 🛡️ Middleware
+- `TernaryGateMiddleware` - Proteção de rotas com lógica ternária
+
+### 7. ✅ Regras de Validação
+- Básicas: `ternary`, `ternary_true`, `ternary_not_false`
+- Avançadas: `ternary_gate`, `ternary_consensus`, `ternary_weighted`
+
+### 8. 🧮 Recursos Avançados
+- Decision Engine com blueprints
+- Aritmética ternária balanceada
+- Circuit Builder
+
+---
+
+## 📖 Documentação Detalhada
+
+- **[Helpers Globais](./pt/helpers-globais.md)** - Todas as 10 funções helper com exemplos
+- **[Macros de Collection](./pt/collection-macros.md)** - 12 métodos Collection para lógica ternária
+- **[Scopes Eloquent](./pt/eloquent-scopes.md)** - Queries de banco de dados com estados ternários
+- **[Macros de Request](./pt/request-macros.md)** - Tratamento ternário de requisições HTTP
+- **[Diretivas Blade](./pt/blade-directives.md)** - Diretivas de template para views
+- **[Regras de Validação](./pt/validation-rules.md)** - Validação de formulários com lógica ternária
+- **[Middleware](./pt/middleware.md)** - Proteção de rotas com gates ternários
+- **[Recursos Avançados](./pt/recursos-avancados.md)** - Decision Engine, Aritmética, Circuitos
+- **[Casos de Uso](./pt/casos-de-uso.md)** - Padrões de implementação do mundo real
+
+---
+
+## 🚀 Instalação
+
+```bash
+composer require vinkius-labs/trilean
+```
+
+### Publicar Configuração
+```bash
+php artisan vendor:publish --tag=trilean-config
+```
+
+### Configurar (opcional)
+```php
+// config/trilean.php
+return [
+    'metrics' => [
+        'enabled' => env('TRILEAN_METRICS', false),
+    ],
+    'ui' => [
+        'badge_classes' => [
+            'true' => 'badge-success',
+            'false' => 'badge-danger',
+            'unknown' => 'badge-warning',
+        ],
+    ],
+];
+```
+
+---
+
+## 📄 Licença
+
+Licença MIT - veja o arquivo [LICENSE](../LICENSE) para detalhes.
+
+---
+
+**Construído com ❤️ por VinkiusLabs** | [GitHub](https://github.com/vinkius-labs/trilean) | [Issues](https://github.com/vinkius-labs/trilean/issues)
+
 - `@maybe` – Renderiza saídas com `maybe()`.
 - `@ternaryMatch` + `@case` – Pattern matching diretamente na view.
 - `@ternaryBadge` / `@ternaryIcon` – Gera HTML pré-formatado com estilos dinâmicos.

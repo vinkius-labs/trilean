@@ -1,0 +1,7 @@
+<span {{ $attributes->class([
+    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+    config('trilean.ui.badges.' . ternary($state)->value),
+]) }}>
+    <x-dynamic-component :component="config('trilean.ui.icons.' . ternary($state)->value)" class="-ml-1 mr-1 h-3 w-3" />
+    {{ $slot->isEmpty() ? $label ?? ucfirst(ternary($state)->value) : $slot }}
+</span>

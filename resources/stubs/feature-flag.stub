@@ -1,0 +1,37 @@
+<?php
+
+namespace App\FeatureFlags;
+
+use Illuminate\Support\Facades\Cache;
+use VinkiusLabs\Trilean\Enums\TernaryState;
+use VinkiusLabs\Trilean\Services\TernaryLogicService;
+use VinkiusLabs\Trilean\Decision\TernaryDecisionReport;
+
+final class {{ class }}
+{
+    public function __construct(
+        private readonly TernaryLogicService $logic,
+    ) {}
+
+    public function evaluate(array $context = []): TernaryDecisionReport
+    {
+        $flags = $this->fetchSignals($context);
+
+        $state = $this->logic->weighted($flags, $context['weights'] ?? [3, 2, 1]);
+
+        return new TernaryDecisionReport(
+            $state,
+            decisions: $flags,
+            encodedVector: $this->logic->encode($flags),
+        );
+    }
+
+    private function fetchSignals(array $context): array
+    {
+        return [
+            'experiment' => Cache::get("feature:{{$context['feature'] ?? 'flag'}}:experiment"),
+            'rollout' => $context['rollout'] ?? TernaryState::UNKNOWN,
+            'override' => $context['override'] ?? TernaryState::UNKNOWN,
+        ];
+    }
+}

@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Compliance;
+
+use Illuminate\Support\Facades\Log;
+use VinkiusLabs\Trilean\Enums\TernaryState;
+use VinkiusLabs\Trilean\Services\TernaryLogicService;
+use VinkiusLabs\Trilean\Decision\TernaryDecisionReport;
+
+final class {{ class }}
+{
+    public function __construct(
+        private readonly TernaryLogicService $logic,
+    ) {}
+
+    public function handle(array $signals): TernaryDecisionReport
+    {
+        $state = $this->logic->consensus($signals);
+
+        $report = new TernaryDecisionReport($state, $signals, $this->logic->encode($signals));
+
+        Log::info('compliance.decision', $report->toArray());
+
+        return $report;
+    }
+
+    public function requiresManualReview(TernaryDecisionReport $report): bool
+    {
+        return $report->state->isUnknown();
+    }
+}

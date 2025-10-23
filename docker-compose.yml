@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trilean/app:latest
+    container_name: trilean-app
+    working_dir: .
+    environment:
+      COMPOSER_MEMORY_LIMIT: "-1"
+      COMPOSER_CACHE_DIR: /tmp/composer-cache
+    volumes:
+      - ./:/workspace:cached
+      - composer-cache:/tmp/composer-cache
+    tty: true
+    stdin_open: true
+    command: ["sleep", "infinity"]
+
+volumes:
+  composer-cache:

@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Livewire;
+
+use Livewire\Component;
+use VinkiusLabs\Trilean\Enums\TernaryState;
+use function ternary_match;
+
+class TernaryBadge extends Component
+{
+    public TernaryState|string $state = TernaryState::UNKNOWN;
+
+    public array $labels = [
+        'true' => 'Ativo',
+        'false' => 'Bloqueado',
+        'unknown' => 'Em revisão',
+    ];
+
+    public function render()
+    {
+        $label = ternary_match($this->state, $this->labels);
+
+        return view('components.trilean.badge', compact('label'));
+    }
+}

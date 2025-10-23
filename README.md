@@ -1,6 +1,4 @@
-# Laravel Trilean
-
-> **Author:** Renato Marinho • **Repository:** [vinkius-labs/trilean](https://github.com/vinkius-labs/trilean)
+# Trilean - Laravel Package
 
 **[English](#english)** | **[Português](#português)** | **[Español](#español)**
 

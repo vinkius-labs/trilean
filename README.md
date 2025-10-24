@@ -1,10 +1,6 @@
 # Laravel Trilean
 
-> **Stop Fighting With Nulls. Handle Unknown States Like a Pro.**
-
-[![Latest Version](https://img.shields.io/packagist/v/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)
-[![Total Downloads](https://img.shields.io/packagist/dt/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)
-[![License](https://img.shields.io/packagist/l/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)
+> **Author:** Renato Marinho • **Repository:** [vinkius-labs/trilean](https://github.com/vinkius-labs/trilean)
 
 **[English](#english)** | **[Português](#português)** | **[Español](#español)**
 

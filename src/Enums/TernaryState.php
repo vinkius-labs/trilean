@@ -4,6 +4,7 @@ namespace VinkiusLabs\Trilean\Enums;
 
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use VinkiusLabs\Trilean\Support\TernaryFluentBuilder;
 
 enum TernaryState: string
 {
@@ -125,6 +126,100 @@ enum TernaryState: string
             self::TRUE => 'True',
             self::FALSE => 'False',
             self::UNKNOWN => 'Unknown',
+        };
+    }
+
+    // ========================================
+    // Fluent API Methods
+    // ========================================
+
+    /**
+     * Set value to return when state is TRUE.
+     * 
+     * @example ternary($value)->ifTrue('Premium')->ifFalse('Free')->resolve()
+     */
+    public function ifTrue(mixed $value): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, ifTrue: $value);
+    }
+
+    /**
+     * Set value to return when state is FALSE.
+     */
+    public function ifFalse(mixed $value): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, ifFalse: $value);
+    }
+
+    /**
+     * Set value to return when state is UNKNOWN.
+     */
+    public function ifUnknown(mixed $value): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, ifUnknown: $value);
+    }
+
+    /**
+     * Execute callback when state is TRUE.
+     * 
+     * @example ternary($flag)->whenTrue(fn() => activatePremium())->execute()
+     */
+    public function whenTrue(callable $callback): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, whenTrue: $callback);
+    }
+
+    /**
+     * Execute callback when state is FALSE.
+     */
+    public function whenFalse(callable $callback): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, whenFalse: $callback);
+    }
+
+    /**
+     * Execute callback when state is UNKNOWN.
+     */
+    public function whenUnknown(callable $callback): TernaryFluentBuilder
+    {
+        return new TernaryFluentBuilder($this, whenUnknown: $callback);
+    }
+
+    /**
+     * Transform state through a pipeline.
+     * 
+     * @example ternary($value)->pipe(fn($s) => $s->invert())->toBool()
+     */
+    public function pipe(callable $transformer): self
+    {
+        return $transformer($this);
+    }
+
+    /**
+     * Convert to boolean with explicit handling.
+     * 
+     * @example ternary($value)->toBool(unknownAs: false)
+     */
+    public function toBool(bool $unknownAs = false): bool
+    {
+        return match ($this) {
+            self::TRUE => true,
+            self::FALSE => false,
+            self::UNKNOWN => $unknownAs,
+        };
+    }
+
+    /**
+     * Match state to values - shorthand for pattern matching.
+     * 
+     * @example ternary($status)->match('Active', 'Inactive', 'Pending')
+     */
+    public function match(mixed $ifTrue, mixed $ifFalse, mixed $ifUnknown = null): mixed
+    {
+        return match ($this) {
+            self::TRUE => $ifTrue,
+            self::FALSE => $ifFalse,
+            self::UNKNOWN => $ifUnknown ?? $ifFalse,
         };
     }
 

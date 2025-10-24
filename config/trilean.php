@@ -20,6 +20,12 @@ return [
         'unknown_message' => 'This decision is still pending.',
     ],
 
+    'cache' => [
+        'enabled' => env('TRILEAN_CACHE_ENABLED', false),
+        'ttl' => env('TRILEAN_CACHE_TTL', 3600), // seconds
+        'driver' => env('TRILEAN_CACHE_DRIVER', 'memory'), // memory, redis, file
+    ],
+
     'metrics' => [
         'enabled' => env('TRILEAN_METRICS', false),
         'default_tags' => [

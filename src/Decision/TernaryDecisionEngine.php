@@ -10,7 +10,27 @@ use VinkiusLabs\Trilean\Services\TernaryLogicService;
 
 class TernaryDecisionEngine
 {
+    private bool $memoizeEnabled = false;
+    private static array $cache = [];
+
     public function __construct(private readonly TernaryLogicService $logic) {}
+
+    /**
+     * Enable memoization for this engine instance.
+     */
+    public function memoize(bool $enabled = true): self
+    {
+        $this->memoizeEnabled = $enabled;
+        return $this;
+    }
+
+    /**
+     * Clear all memoized decisions.
+     */
+    public static function clearCache(): void
+    {
+        self::$cache = [];
+    }
 
     /**
      * @param array<string, mixed> $blueprint
@@ -18,6 +38,24 @@ class TernaryDecisionEngine
      */
     public function evaluate(array $blueprint, array $context = []): TernaryDecisionReport
     {
+        // Check cache if memoization is enabled
+        if ($this->memoizeEnabled || config('trilean.cache.enabled', false)) {
+            $cacheKey = $this->getCacheKey($blueprint, $context);
+
+            if (isset(self::$cache[$cacheKey])) {
+                $cached = self::$cache[$cacheKey];
+
+                // Check TTL if configured
+                $ttl = config('trilean.cache.ttl', 3600);
+                if ($cached['expires_at'] > time()) {
+                    return $cached['report'];
+                }
+
+                // Expired - remove from cache
+                unset(self::$cache[$cacheKey]);
+            }
+        }
+
         $startedAt = microtime(true);
         $inputs = $this->resolveInputs($blueprint['inputs'] ?? [], $context);
         $decisions = Collection::make();
@@ -75,7 +113,32 @@ class TernaryDecisionEngine
             event(new TernaryDecisionEvaluated($report, $context, $blueprint));
         }
 
+        // Cache the result if memoization is enabled
+        if ($this->memoizeEnabled || config('trilean.cache.enabled', false)) {
+            $cacheKey = $this->getCacheKey($blueprint, $context);
+            $ttl = config('trilean.cache.ttl', 3600);
+
+            self::$cache[$cacheKey] = [
+                'report' => $report,
+                'expires_at' => time() + $ttl,
+                'cached_at' => time(),
+            ];
+        }
+
         return $report;
+    }
+
+    /**
+     * Generate cache key from blueprint and context.
+     */
+    private function getCacheKey(array $blueprint, array $context): string
+    {
+        $data = [
+            'blueprint' => $blueprint,
+            'context' => $context,
+        ];
+
+        return md5(serialize($data));
     }
 
     private function resolveInputs(array $inputs, array $context): Collection

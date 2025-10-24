@@ -216,8 +216,6 @@ public function canSaveForLater(Order $order): bool
 
 ### Global Helpers (Zero Learning Curve)
 
-### Global Helpers (Zero Learning Curve)
-
 ```php
 // ✅ Direct state checks - self-explanatory
 is_true($value)      // Explicitly true?
@@ -245,6 +243,32 @@ when_unknown($condition, fn() => $action());
 // 🚨 Validation - throw exceptions for invalid states
 require_true($verified, 'Must be verified');
 require_not_false($consent, 'Consent required');
+
+// Fluent API - chainable operations
+ternary($value)
+    ->ifTrue('approved')
+    ->ifFalse('rejected')
+    ->ifUnknown('pending')
+    ->resolve();
+
+// Pattern matching with wildcards
+match_ternary([true, true, '*'], [$check1, $check2, $check3]);  // Ignores 3rd value
+
+// Array operations
+array_all_true([$verified, $consented, $active]);  // All must be true
+array_any_true([$sms, $email, $app]);              // At least one true
+array_filter_true($checks);                         // Keep only true values
+array_count_ternary($values);                       // ['true' => 3, 'false' => 1, 'unknown' => 2]
+
+// Ternary coalescing - first non-false value
+ternary_coalesce($maybeValue, $fallback1, $fallback2, true);
+
+// Pipeline operations
+pipe_ternary($value, [
+    fn($v) => validateEmail($v),
+    fn($v) => checkDomain($v),
+    fn($v) => verifyMX($v),
+]);
 ```
 
 ### Collection Macros (Works with Laravel Collections)
@@ -332,12 +356,195 @@ $request->validate([
 
 ---
 
+## 🆕 Domain-Specific Helpers
+
+Trilean now includes specialized helpers for common business scenarios:
+
+### GDPR & Privacy Compliance
+
+```php
+// Check if data processing is allowed
+if (gdpr_can_process($user->marketing_consent)) {
+    sendMarketingEmail($user);
+}
+
+// Check if action is needed (null/unknown consent)
+if (gdpr_requires_action($user->data_consent)) {
+    return redirect()->route('consent.request');
+}
+
+// Fluent GDPR helper
+use VinkiusLabs\Trilean\Support\Domain\GdprHelper;
+
+$gdpr = new GdprHelper($user->consent);
+$gdpr->canProcess();         // TRUE only if explicitly consented
+$gdpr->requiresAction();     // TRUE if pending/unknown
+$gdpr->status();             // 'granted', 'denied', or 'pending'
+```
+
+### Feature Flags with Rollout
+
+```php
+// Check feature flag with automatic rollout
+if (feature('new_ui', $user->id)) {
+    return view('app.new-ui');
+}
+
+// Fluent feature helper with gradual rollout
+use VinkiusLabs\Trilean\Support\Domain\FeatureHelper;
+
+$feature = new FeatureHelper($flags['new_checkout']);
+$feature->enabled($user->id, rolloutPercentage: 25);  // 25% rollout
+$feature->isTesting();  // TRUE if unknown state (gradual rollout active)
+$feature->status();     // 'enabled', 'disabled', or 'testing'
+```
+
+### Risk Assessment & Fraud Detection
+
+```php
+// Get risk level from score
+$level = risk_level($fraudScore);  // 'low', 'medium', 'high'
+
+// Get ternary fraud decision
+$isFraud = fraud_score($transactionScore, threshold: 70);
+
+// Fluent risk helper
+use VinkiusLabs\Trilean\Support\Domain\RiskHelper;
+
+$risk = new RiskHelper($score);
+$risk->isLow();        // TRUE if score < 33
+$risk->isMedium();     // TRUE if 33 <= score < 66
+$risk->isHigh();       // TRUE if score >= 66
+$risk->level();        // 'low', 'medium', or 'high'
+
+// Fraud score helper with custom thresholds
+use VinkiusLabs\Trilean\Support\Domain\FraudScoreHelper;
+
+$fraud = new FraudScoreHelper($transactionScore);
+$fraud->isSafe(threshold: 40);     // Safe if below threshold
+$fraud->isFraudulent(threshold: 70); // Fraud if above threshold
+$fraud->needsReview();              // UNKNOWN state = needs review
+```
+
+### Compliance & Approval Workflows
+
+```php
+// Multi-department approval
+$approved = approved([
+    'legal' => $legalApproval,
+    'finance' => $financeApproval,
+    'executive' => $executiveApproval,
+]);
+
+// Check compliance status
+if (compliant('strict', $checks)) {
+    // All checks must be true
+}
+
+// Fluent compliance helper
+use VinkiusLabs\Trilean\Support\Domain\ComplianceHelper;
+
+$compliance = new ComplianceHelper($approvals);
+
+// Different strategies
+$compliance->strict();    // All must be true
+$compliance->lenient();   // None can be false (unknown OK)
+$compliance->majority();  // More true than false
+$compliance->weighted([   // Weighted decision
+    'legal' => 3,        // Legal approval worth 3 points
+    'finance' => 2,
+    'executive' => 2,
+]);
+```
+
+**Real-World Example:**
+```php
+// Payment processing with risk assessment
+public function processPayment(Payment $payment): string
+{
+    $riskScore = $this->calculateRiskScore($payment);
+    $fraudDecision = fraud_score($riskScore, threshold: 75);
+    
+    return ternary($fraudDecision)
+        ->ifTrue('REJECTED')        // High risk - reject
+        ->ifFalse('APPROVED')       // Low risk - approve
+        ->ifUnknown('MANUAL_REVIEW') // Medium risk - human review
+        ->resolve();
+}
+
+// Feature rollout with user segmentation
+public function canAccessBetaFeature(User $user): bool
+{
+    $featureFlag = $this->getFeatureFlag('beta_checkout');
+    
+    return feature($featureFlag, $user->id, rolloutPercentage: 10);
+}
+
+// GDPR-compliant email sending
+public function sendNewsletterIfAllowed(User $user): void
+{
+    if (!gdpr_can_process($user->newsletter_consent)) {
+        // Log suppression reason
+        Log::info("Newsletter suppressed", [
+            'user_id' => $user->id,
+            'reason' => gdpr_requires_action($user->newsletter_consent) 
+                ? 'consent_pending' 
+                : 'consent_denied'
+        ]);
+        return;
+    }
+    
+    $this->sendNewsletter($user);
+}
+```
+
+---
+
 ## 🚀 Advanced Features
+
+### Fluent API (Chainable Operations)
+
+Build complex ternary logic with a fluent, readable syntax:
+
+```php
+// Instead of nested ternary operators or if-else chains
+$status = ternary($subscription->active)
+    ->ifTrue('premium')
+    ->ifFalse('free')
+    ->ifUnknown('trial')
+    ->resolve();
+
+// Execute callbacks based on state
+ternary($user->verified)
+    ->whenTrue(fn() => $this->grantAccess())
+    ->whenFalse(fn() => $this->sendVerificationEmail())
+    ->whenUnknown(fn() => $this->requestDocuments())
+    ->execute();
+
+// Chain multiple operations
+$result = ternary($payment->status)
+    ->ifTrue('success')
+    ->ifFalse('failed')
+    ->ifUnknown('pending')
+    ->pipe(fn($status) => strtoupper($status))
+    ->resolve(); // Returns: 'SUCCESS', 'FAILED', or 'PENDING'
+
+// Use match() for pattern matching
+$message = ternary($verification)
+    ->match([
+        'true' => 'Account verified ✓',
+        'false' => 'Verification failed ✗',
+        'unknown' => 'Verification pending...',
+    ]);
+```
+
+### Decision Engine (Complex Logic Made Simple)
 
 ### Decision Engine (Complex Logic Made Simple)
 
 Perfect for multi-step workflows, compliance checks, or fraud detection:
 
+**Classic Array-Based API:**
 ```php
 use VinkiusLabs\Trilean\Decision\TernaryDecisionEngine;
 
@@ -375,6 +582,111 @@ $report = $engine->evaluate([
 $canProceed = $report->result()->isTrue();
 $auditLog = $report->decisions();  // Full decision history
 $encoded = $report->encodedVector(); // "++0-" for compact storage
+```
+
+** Fluent Decision Builder DSL**
+
+Build decision trees without verbose arrays - cleaner and more maintainable:
+
+```php
+use function VinkiusLabs\Trilean\Helpers\decide;
+
+// Simple decision tree
+$approved = decide()
+    ->input('verified', $user->email_verified)
+    ->input('consent', $user->gdpr_consent)
+    ->and('verified', 'consent')
+    ->toBool();  // Converts to boolean (unknown = false)
+
+// Complex multi-level decision
+$canPurchase = decide()
+    // Inputs
+    ->input('age_verified', $user->age >= 18)
+    ->input('payment_valid', $payment->isValid())
+    ->input('stock_available', $product->inStock())
+    ->input('fraud_check', !$fraudDetector->isSuspicious())
+    
+    // Decision gates
+    ->and('age_verified', 'payment_valid')      // Both required
+    ->or('stock_available', 'fraud_check')       // At least one
+    ->requireAll(['age_verified', 'payment_valid'])  // Final check
+    ->toBool();
+
+// Weighted consensus for approvals
+$departmentApproved = decide()
+    ->input('legal', $approvals->legal)
+    ->input('finance', $approvals->finance)
+    ->input('executive', $approvals->executive)
+    ->weighted(['legal', 'finance', 'executive'], [3, 2, 2])  // Weighted votes
+    ->toBool();
+
+// Evaluate and get full report
+$report = decide()
+    ->input('check1', $value1)
+    ->input('check2', $value2)
+    ->and('check1', 'check2')
+    ->evaluate();  // Returns DecisionReport with audit trail
+
+$result = $report->result();        // TernaryState
+$decisions = $report->decisions();  // Full decision history
+$vector = $report->encodedVector(); // "++0-" compact format
+```
+
+** Memoization for Performance**
+
+Cache expensive decision evaluations:
+
+```php
+// Enable memoization in config/trilean.php
+return [
+    'cache' => [
+        'enabled' => true,
+        'ttl' => 3600,  // Cache for 1 hour
+        'driver' => 'redis',  // Uses Laravel cache driver
+    ],
+];
+
+// Automatic caching - identical blueprints reuse cached results
+$engine = app(TernaryDecisionEngine::class);
+
+$report1 = $engine->memoize()->evaluate($blueprint);  // Executes and caches
+$report2 = $engine->memoize()->evaluate($blueprint);  // Returns from cache (fast!)
+
+// Clear cache when needed
+$engine->clearCache();
+```
+
+**Real-World Decision Engine Example:**
+```php
+// E-commerce order approval system
+public function approveOrder(Order $order): OrderDecision
+{
+    $report = decide()
+        // Customer checks
+        ->input('customer_verified', $order->customer->isVerified())
+        ->input('payment_method_valid', $order->payment->isValid())
+        ->input('billing_address_ok', $order->billingAddress->isComplete())
+        
+        // Inventory checks
+        ->input('items_in_stock', $order->items->every->inStock())
+        ->input('warehouse_capacity', $this->warehouse->hasCapacity($order))
+        
+        // Risk assessment
+        ->input('fraud_score_ok', $order->fraudScore < 50)
+        ->input('velocity_check_ok', !$this->velocityChecker->isSuspicious($order))
+        
+        // Decision gates
+        ->and('customer_verified', 'payment_method_valid', 'billing_address_ok')
+        ->requireAll(['customer_verified', 'payment_method_valid'])
+        ->consensus(['fraud_score_ok', 'velocity_check_ok'])
+        ->evaluate();
+    
+    return new OrderDecision(
+        approved: $report->result()->isTrue(),
+        auditTrail: $report->decisions(),
+        requiresReview: $report->result()->isUnknown(),
+    );
+}
 ```
 
 ### Eloquent Scopes (Database Queries)
@@ -514,6 +826,13 @@ return [
             'telescope' => ['enabled' => true],
             'prometheus' => ['enabled' => true],
         ],
+    ],
+    
+    // Decision Engine caching
+    'cache' => [
+        'enabled' => env('TRILEAN_CACHE_ENABLED', true),
+        'ttl' => env('TRILEAN_CACHE_TTL', 3600),  // 1 hour default
+        'driver' => env('TRILEAN_CACHE_DRIVER', 'redis'),
     ],
 ];
 ```
@@ -669,6 +988,31 @@ if (is_true($user->verified)) {
 }
 
 echo pick($status, 'Ativo', 'Inativo', 'Pendente');
+
+// API Fluente
+ternary($valor)
+    ->ifTrue('aprovado')
+    ->ifFalse('rejeitado')
+    ->ifUnknown('pendente')
+    ->resolve();
+
+// Helpers de domínio
+if (gdpr_can_process($user->marketing_consent)) {
+    enviarEmailMarketing($user);
+}
+
+if (feature('nova_interface', $user->id)) {
+    return view('app.nova-interface');
+}
+
+$nivel = risk_level($pontuacaoFraude);  // 'baixo', 'médio', 'alto'
+
+// Motor de decisão fluente
+$aprovado = decide()
+    ->input('verificado', $user->email_verified)
+    ->input('consentimento', $user->lgpd_consent)
+    ->and('verificado', 'consentimento')
+    ->toBool();
 ```
 
 ### 📖 Documentação Completa
@@ -736,6 +1080,31 @@ if (is_true($user->verified)) {
 }
 
 echo pick($status, 'Activo', 'Inactivo', 'Pendiente');
+
+// API Fluida
+ternary($valor)
+    ->ifTrue('aprobado')
+    ->ifFalse('rechazado')
+    ->ifUnknown('pendiente')
+    ->resolve();
+
+// Helpers de dominio
+if (gdpr_can_process($user->marketing_consent)) {
+    enviarEmailMarketing($user);
+}
+
+if (feature('nueva_interfaz', $user->id)) {
+    return view('app.nueva-interfaz');
+}
+
+$nivel = risk_level($puntuacionFraude);  // 'bajo', 'medio', 'alto'
+
+// Motor de decisión fluido
+$aprobado = decide()
+    ->input('verificado', $user->email_verified)
+    ->input('consentimiento', $user->gdpr_consent)
+    ->and('verificado', 'consentimiento')
+    ->toBool();
 ```
 
 ### 📖 Documentación Completa

@@ -1,4 +1,4 @@
-# Laravel Trilean
+# Trilean
 
 [![Latest Version](https://img.shields.io/packagist/v/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)
 [![Total Downloads](https://img.shields.io/packagist/dt/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)

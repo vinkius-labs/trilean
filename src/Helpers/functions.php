@@ -27,52 +27,84 @@ if (!function_exists('ternary')) {
 
 if (!function_exists('is_true')) {
     /**
-     * Direct boolean check - no intermediate objects.
+     * Direct boolean check - optimized fast path for native booleans.
      * 
      * @example if (is_true($user->verified)) { }
      */
     function is_true(mixed $value): bool
     {
+        if (is_bool($value)) {
+            return $value === true;
+        }
+
+        if ($value === null) return false;
+        if ($value === 1) return true;
+        if ($value === 0) return false;
+
         return TernaryState::fromMixed($value)->isTrue();
     }
 }
 
 if (!function_exists('is_false')) {
     /**
-     * Direct boolean check for false state.
+     * Direct boolean check for false state 
      * 
      * @example if (is_false($user->blocked)) { }
      */
     function is_false(mixed $value): bool
     {
+        if (is_bool($value)) {
+            return $value === false;
+        }
+
+        if ($value === null) return false;
+        if ($value === 0) return true;
+        if ($value === 1) return false;
+
         return TernaryState::fromMixed($value)->isFalse();
     }
 }
 
 if (!function_exists('is_unknown')) {
     /**
-     * Direct boolean check for unknown state.
+     * Direct boolean check for unknown state
      * 
      * @example if (is_unknown($user->consent)) { }
      */
     function is_unknown(mixed $value): bool
     {
+        if ($value === null) return true;
+
+        if (is_bool($value)) return false;
+        if ($value === 0 || $value === 1) return false;
+
         return TernaryState::fromMixed($value)->isUnknown();
     }
 }
 
 if (!function_exists('and_all')) {
     /**
-     * Simple AND operation - returns boolean directly.
+     * Optimized AND operation with early returns.
      * 
      * @example if (and_all($verified, $consented, $active)) { }
      */
     function and_all(mixed ...$values): bool
     {
         foreach ($values as $value) {
+            if (is_bool($value)) {
+                if ($value === false) return false;
+                continue;
+            }
+
+            if ($value === null) return false;
+
+            // Fast path for common integers
+            if ($value === 0) return false;
+            if ($value === 1) continue;
+
+            // Slower path: requires conversion
             $state = TernaryState::fromMixed($value);
-            if ($state->isFalse()) return false;
-            if ($state->isUnknown()) return false;
+            if (!$state->isTrue()) return false;
         }
         return true;
     }
@@ -80,13 +112,27 @@ if (!function_exists('and_all')) {
 
 if (!function_exists('or_any')) {
     /**
-     * Simple OR operation - returns boolean directly.
+     * Optimized OR operation with early returns.
+     * 
+     * Performance: Stops at first TRUE found.
      * 
      * @example if (or_any($method1, $method2, $method3)) { }
      */
     function or_any(mixed ...$values): bool
     {
         foreach ($values as $value) {
+
+            if (is_bool($value) && $value === true) {
+                return true;
+            }
+
+            if ($value === 1) return true;
+
+            if ($value === null || $value === 0 || $value === false) {
+                continue;
+            }
+
+            // Slower path
             if (is_true($value)) return true;
         }
         return false;
@@ -291,39 +337,59 @@ if (!function_exists('array_any_true')) {
 
 if (!function_exists('array_filter_true')) {
     /**
-     * Filter array keeping only true values (removes false/unknown).
+     * Filter array keeping only true values 
      * 
      * @example array_filter_true($values)
      */
     function array_filter_true(array $values): array
     {
-        return array_filter($values, fn($value) => is_true($value));
+        return array_filter($values, function ($value) {
+
+            if (is_bool($value)) return $value === true;
+            if ($value === 1) return true;
+            if ($value === null || $value === 0) return false;
+
+            return TernaryState::fromMixed($value)->isTrue();
+        });
     }
 }
 
 if (!function_exists('array_filter_false')) {
     /**
-     * Filter array keeping only false values.
+     * Filter array keeping only false values (optimized).
      */
     function array_filter_false(array $values): array
     {
-        return array_filter($values, fn($value) => is_false($value));
+        return array_filter($values, function ($value) {
+
+            if (is_bool($value)) return $value === false;
+            if ($value === 0) return true;
+            if ($value === null || $value === 1) return false;
+
+            return TernaryState::fromMixed($value)->isFalse();
+        });
     }
 }
 
 if (!function_exists('array_filter_unknown')) {
     /**
-     * Filter array keeping only unknown values.
+     * Filter array keeping only unknown values (optimized).
      */
     function array_filter_unknown(array $values): array
     {
-        return array_filter($values, fn($value) => is_unknown($value));
+        return array_filter($values, function ($value) {
+
+            if ($value === null) return true;
+            if (is_bool($value) || $value === 0 || $value === 1) return false;
+
+            return TernaryState::fromMixed($value)->isUnknown();
+        });
     }
 }
 
 if (!function_exists('array_count_ternary')) {
     /**
-     * Count true/false/unknown values in array.
+     * Count true/false/unknown values in array
      * 
      * @example array_count_ternary($values) // ['true'=>3, 'false'=>1, 'unknown'=>2]
      */
@@ -332,7 +398,28 @@ if (!function_exists('array_count_ternary')) {
         $counts = ['true' => 0, 'false' => 0, 'unknown' => 0];
 
         foreach ($values as $value) {
-            $state = \VinkiusLabs\Trilean\Enums\TernaryState::fromMixed($value);
+
+            if (is_bool($value)) {
+                $counts[$value ? 'true' : 'false']++;
+                continue;
+            }
+
+            if ($value === null) {
+                $counts['unknown']++;
+                continue;
+            }
+
+            if ($value === 1) {
+                $counts['true']++;
+                continue;
+            }
+
+            if ($value === 0) {
+                $counts['false']++;
+                continue;
+            }
+
+            $state = TernaryState::fromMixed($value);
             $counts[$state->value]++;
         }
 

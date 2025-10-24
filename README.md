@@ -1,4 +1,4 @@
-# Trilean
+<img width="1536" height="739" alt="trilean-logo" src="https://github.com/user-attachments/assets/c1774a0f-a6ec-4078-af98-d11c34ca9f0e" />
 
 [![Latest Version](https://img.shields.io/packagist/v/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)
 [![Total Downloads](https://img.shields.io/packagist/dt/vinkius-labs/trilean.svg?style=flat-square)](https://packagist.org/packages/vinkius-labs/trilean)

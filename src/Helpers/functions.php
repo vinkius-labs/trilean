@@ -1,193 +1,215 @@
 <?php
 
 use VinkiusLabs\Trilean\Enums\TernaryState;
-use VinkiusLabs\Trilean\Collections\TernaryVector;
 
-if (!function_exists('ternary')) {
+/**
+ * Global Helper Functions for Trilean Package
+ * 
+ * Key principles:
+ * 1. Single way to do common things
+ * 2. Obvious syntax without magic
+ * 3. Minimal typing required
+ * 4. Consistent return patterns
+ */
+
+if (!function_exists('is_true')) {
     /**
-     * Convert any value to a TernaryState with fluent syntax.
+     * Direct boolean check - no intermediate objects.
      * 
-     * @example ternary($user->verified)->isTrue()
-     * @example ternary(null)->isUnknown()
+     * @example if (is_true($user->verified)) { }
      */
-    function ternary(mixed $value): TernaryState
+    function is_true(mixed $value): bool
     {
-        return TernaryState::fromMixed($value);
+        return TernaryState::fromMixed($value)->isTrue();
     }
 }
 
-if (!function_exists('maybe')) {
+if (!function_exists('is_false')) {
     /**
-     * Smart ternary evaluation: returns value if TRUE, default if FALSE, callback if UNKNOWN.
+     * Direct boolean check for false state.
      * 
-     * @example maybe($consent, 'Allowed', 'Denied', fn() => 'Pending approval')
+     * @example if (is_false($user->blocked)) { }
      */
-    function maybe(mixed $condition, mixed $ifTrue, mixed $ifFalse, mixed $ifUnknown = null): mixed
+    function is_false(mixed $value): bool
+    {
+        return TernaryState::fromMixed($value)->isFalse();
+    }
+}
+
+if (!function_exists('is_unknown')) {
+    /**
+     * Direct boolean check for unknown state.
+     * 
+     * @example if (is_unknown($user->consent)) { }
+     */
+    function is_unknown(mixed $value): bool
+    {
+        return TernaryState::fromMixed($value)->isUnknown();
+    }
+}
+
+if (!function_exists('and_all')) {
+    /**
+     * Simple AND operation - returns boolean directly.
+     * 
+     * @example if (and_all($verified, $consented, $active)) { }
+     */
+    function and_all(mixed ...$values): bool
+    {
+        foreach ($values as $value) {
+            $state = TernaryState::fromMixed($value);
+            if ($state->isFalse()) return false;
+            if ($state->isUnknown()) return false;
+        }
+        return true;
+    }
+}
+
+if (!function_exists('or_any')) {
+    /**
+     * Simple OR operation - returns boolean directly.
+     * 
+     * @example if (or_any($method1, $method2, $method3)) { }
+     */
+    function or_any(mixed ...$values): bool
+    {
+        foreach ($values as $value) {
+            if (is_true($value)) return true;
+        }
+        return false;
+    }
+}
+
+if (!function_exists('pick')) {
+    /**
+     * Simplified conditional - most common use case.
+     * 
+     * @example echo pick($user->active, 'Active', 'Inactive');
+     * @example echo pick($status, 'Yes', 'No', 'Maybe');
+     */
+    function pick(mixed $condition, mixed $ifTrue, mixed $ifFalse, mixed $ifUnknown = null): mixed
     {
         $state = TernaryState::fromMixed($condition);
 
         return match ($state) {
-            TernaryState::TRUE => value($ifTrue),
-            TernaryState::FALSE => value($ifFalse),
-            TernaryState::UNKNOWN => value($ifUnknown ?? $ifFalse),
+            TernaryState::TRUE => $ifTrue,
+            TernaryState::FALSE => $ifFalse,
+            TernaryState::UNKNOWN => $ifUnknown ?? $ifFalse,
         };
     }
 }
 
-if (!function_exists('trilean')) {
+if (!function_exists('when_true')) {
     /**
-     * Quick access to the ternary logic service.
+     * Execute callback only when true - common pattern.
      * 
-     * @example trilean()->and($a, $b, $c)
-     * @example trilean()->weighted([$x, $y], [3, 1])
+     * @example when_true($user->verified, fn() => $user->activate());
      */
-    function trilean(): \VinkiusLabs\Trilean\Services\TernaryLogicService
+    function when_true(mixed $condition, callable $callback): mixed
     {
-        return app('trilean.logic');
+        return is_true($condition) ? $callback() : null;
     }
 }
 
-if (!function_exists('ternary_vector')) {
+if (!function_exists('when_false')) {
     /**
-     * Create a TernaryVector from an array or collection.
+     * Execute callback only when false.
      * 
-     * @example ternary_vector([true, false, null])->consensus()
+     * @example when_false($user->blocked, fn() => $user->sendWelcomeEmail());
      */
-    function ternary_vector(iterable $values): TernaryVector
+    function when_false(mixed $condition, callable $callback): mixed
     {
-        return TernaryVector::make($values);
+        return is_false($condition) ? $callback() : null;
     }
 }
 
-if (!function_exists('all_true')) {
+if (!function_exists('when_unknown')) {
     /**
-     * Check if all values are TRUE (strict AND).
+     * Execute callback only when unknown.
      * 
-     * @example all_true($verified, $consented, $active)
+     * @example when_unknown($user->consent, fn() => $user->requestConsent());
      */
-    function all_true(mixed ...$values): bool
+    function when_unknown(mixed $condition, callable $callback): mixed
     {
-        return trilean()->and(...$values)->isTrue();
+        return is_unknown($condition) ? $callback() : null;
     }
 }
 
-if (!function_exists('any_true')) {
+if (!function_exists('vote')) {
     /**
-     * Check if any value is TRUE (relaxed OR).
+     * Simple majority decision - easier than consensus().
      * 
-     * @example any_true($method1, $method2, $method3)
+     * @example $result = vote($check1, $check2, $check3); // returns 'true', 'false', or 'tie'
      */
-    function any_true(mixed ...$values): bool
+    function vote(mixed ...$values): string
     {
-        return trilean()->or(...$values)->isTrue();
+        $true_count = 0;
+        $false_count = 0;
+        $unknown_count = 0;
+
+        foreach ($values as $value) {
+            $state = TernaryState::fromMixed($value);
+            match ($state) {
+                TernaryState::TRUE => $true_count++,
+                TernaryState::FALSE => $false_count++,
+                TernaryState::UNKNOWN => $unknown_count++,
+            };
+        }
+
+        if ($true_count > $false_count && $true_count > $unknown_count) {
+            return 'true';
+        }
+
+        if ($false_count > $true_count && $false_count > $unknown_count) {
+            return 'false';
+        }
+
+        return 'tie';
     }
 }
 
-if (!function_exists('none_false')) {
+if (!function_exists('safe_bool')) {
     /**
-     * Check if none of the values are FALSE (allows UNKNOWN).
+     * Convert to boolean with explicit unknown handling.
      * 
-     * @example none_false($check1, $check2) // returns true if all are TRUE or UNKNOWN
+     * @example $active = safe_bool($user->active, default: false);
      */
-    function none_false(mixed ...$values): bool
+    function safe_bool(mixed $value, bool $default = false): bool
     {
-        return !trilean()->or(...$values)->isFalse() || trilean()->and(...$values)->isUnknown();
-    }
-}
-
-if (!function_exists('when_ternary')) {
-    /**
-     * Conditional execution based on ternary state.
-     * 
-     * @example when_ternary($state, fn() => $user->activate(), fn() => $user->block())
-     */
-    function when_ternary(
-        mixed $condition,
-        ?callable $onTrue = null,
-        ?callable $onFalse = null,
-        ?callable $onUnknown = null
-    ): mixed {
-        $state = TernaryState::fromMixed($condition);
+        $state = TernaryState::fromMixed($value);
 
         return match ($state) {
-            TernaryState::TRUE => $onTrue ? $onTrue() : true,
-            TernaryState::FALSE => $onFalse ? $onFalse() : false,
-            TernaryState::UNKNOWN => $onUnknown ? $onUnknown() : null,
+            TernaryState::TRUE => true,
+            TernaryState::FALSE => false,
+            TernaryState::UNKNOWN => $default,
         };
     }
 }
 
-if (!function_exists('consensus')) {
+if (!function_exists('require_true')) {
     /**
-     * Find consensus among multiple signals.
+     * Throw exception if not true - useful for validation.
      * 
-     * @example consensus($vote1, $vote2, $vote3)->label()
+     * @example require_true($user->verified, 'User must be verified');
      */
-    function consensus(mixed ...$values): TernaryState
+    function require_true(mixed $value, string $message = 'Value must be true'): void
     {
-        return trilean()->consensus($values);
+        if (!is_true($value)) {
+            throw new \InvalidArgumentException($message);
+        }
     }
 }
 
-if (!function_exists('ternary_match')) {
+if (!function_exists('require_not_false')) {
     /**
-     * Pattern matching for ternary states (syntactic sugar).
+     * Throw exception if false - allows true or unknown.
      * 
-     * @example ternary_match($state, [
-     *     'true' => 'Approved',
-     *     'false' => 'Rejected', 
-     *     'unknown' => 'Pending'
-     * ])
+     * @example require_not_false($user->blocked, 'User is blocked');
      */
-    function ternary_match(mixed $value, array $cases): mixed
+    function require_not_false(mixed $value, string $message = 'Value cannot be false'): void
     {
-        $state = TernaryState::fromMixed($value);
-        $key = strtolower($state->value);
-
-        $match = $cases[$key] ?? ($cases['unknown'] ?? null);
-
-        if ($match !== null) {
-            return value($match, $state->value, $state);
+        if (is_false($value)) {
+            throw new \InvalidArgumentException($message);
         }
-
-        if (array_key_exists('any', $cases)) {
-            return value($cases['any'], $state->value, $state);
-        }
-
-        return null;
-    }
-}
-
-if (!function_exists('ternary_badge')) {
-    /**
-     * Render a ternary badge using the package view helper.
-     */
-    function ternary_badge(mixed $state, array $options = []): string
-    {
-        $payload = array_merge(['state' => $state], $options);
-
-        return view('trilean::components.badge', $payload)->render();
-    }
-}
-
-if (!function_exists('ternary_icon')) {
-    /**
-     * Resolve icon markup for a ternary state.
-     */
-    function ternary_icon(mixed $value, ?string $trueIcon = null, ?string $falseIcon = null, ?string $unknownIcon = null): string
-    {
-        $state = TernaryState::fromMixed($value);
-
-        $defaults = config('trilean.ui.icons', []);
-        $overrides = array_filter([
-            'true' => $trueIcon,
-            'false' => $falseIcon,
-            'unknown' => $unknownIcon,
-        ], fn($icon) => $icon !== null && $icon !== '');
-
-        $icons = array_merge($defaults, $overrides);
-        $class = $icons[$state->value] ?? 'heroicon-o-question-mark-circle';
-
-        return '<i class="' . e($class) . '"></i>';
     }
 }

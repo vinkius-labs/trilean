@@ -27,19 +27,20 @@ if ($user->verified && $user->email_confirmed && $user->terms_accepted) {
 return back()->with('error', 'Cannot activate account');
 ```
 
-**✅ After (Trilean clarity)**
+**✅ After (Trilean)**
 ```php
-if (all_true($user->verified, $user->email_confirmed, $user->terms_accepted)) {
+// Direct and obvious
+if (and_all($user->verified, $user->email_confirmed, $user->terms_accepted)) {
     $user->activate();
     return redirect('/dashboard');
 }
 
-// Explicit handling of each state
-return maybe(
-    consensus($user->verified, $user->email_confirmed, $user->terms_accepted),
-    ifTrue: fn() => redirect('/dashboard'),
-    ifFalse: fn() => back()->with('error', 'Requirements not met'),
-    ifUnknown: fn() => redirect('/pending-verification')
+// Clear handling of each state
+$decision = vote($user->verified, $user->email_confirmed, $user->terms_accepted);
+return pick($decision,
+    'true' => redirect('/dashboard'),
+    'false' => back()->with('error', 'Requirements not met'),
+    'tie' => redirect('/pending-verification')
 );
 ```
 
@@ -166,8 +167,8 @@ return response()->json([
 
 ### 1. 🔥 Global Helpers (10 functions)
 
-#### `ternary()` - Smart Conversion
-**What it does**: Converts any value to `TernaryState` enum (`TRUE`, `FALSE`, `UNKNOWN`)
+#### `is_true()`, `is_false()`, `is_unknown()` - Direct Checks
+**What it does**: Direct boolean checks without intermediate objects
 
 **❌ Before**
 ```php
@@ -180,23 +181,53 @@ if ($verified) {
 
 **✅ After**
 ```php
-$state = ternary($user->verified);
-
-if ($state->isTrue()) {
+// Direct and obvious
+if (is_true($user->verified)) {
     // Explicit TRUE handling
-} elseif ($state->isUnknown()) {
+} elseif (is_unknown($user->verified)) {
     // Handle null/unknown explicitly
 }
 ```
 
-#### `maybe()` - Three-Way Branching
-**What it does**: Execute different callbacks based on ternary state
+#### `ternary()` - State Conversion (Advanced)
+**For when you need the TernaryState object:**
+```php
+$state = ternary($user->verified);
+$label = $state->label(); // 'True', 'False', 'Unknown'
+```
+
+#### `pick()` - Simple Conditionals
+**What it does**: Choose between values based on ternary state
 
 **❌ Before**
 ```php
 if ($feature->enabled === true) {
     return $this->enablePremium();
 } elseif ($feature->enabled === false) {
+    return $this->showBasic();
+} else {
+    return $this->showPending();
+}
+```
+
+**✅ After**
+```php
+return pick($feature->enabled,
+    $this->enablePremium(),
+    $this->showBasic(),
+    $this->showPending()
+);
+```
+
+#### `maybe()` - Advanced Conditionals
+**For complex callback scenarios:**
+```php
+maybe($feature->enabled,
+    onTrue: fn() => $this->enablePremium(),
+    onFalse: fn() => $this->showBasic(),
+    onUnknown: fn() => $this->showPending()
+);
+```
     Log::info('Feature disabled');
     return null;
 } else {

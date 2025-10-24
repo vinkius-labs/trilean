@@ -13,46 +13,105 @@ class ValidationRulesTest extends TestCase
         return [TernaryLogicServiceProvider::class];
     }
 
-    public function test_ternary_validation_passes_for_supported_values(): void
+    public function test_must_be_true_validation_rule()
     {
-        $validator = Validator::make([
-            'consent' => 'yes',
-        ], [
-            'consent' => 'ternary',
-        ]);
-
+        $validator = Validator::make(['consent' => 'yes'], ['consent' => 'must_be_true']);
         $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(['consent' => 'no'], ['consent' => 'must_be_true']);
+        $this->assertTrue($validator->fails());
     }
 
-    public function test_gate_and_expression_rules(): void
+    public function test_cannot_be_false_validation_rule()
     {
-        $data = [
-            'consent' => true,
-            'verified' => true,
-            'blocked' => false,
-        ];
-
-        $validator = Validator::make($data, [
-            'eligibility' => 'ternary_gate:consent,verified,and',
-            'confidence' => 'ternary_expression:consent AND verified AND !blocked',
-        ]);
-
+        $validator = Validator::make(['blocked' => 'yes'], ['blocked' => 'cannot_be_false']);
         $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(['blocked' => 'no'], ['blocked' => 'cannot_be_false']);
+        $this->assertTrue($validator->fails());
     }
 
-    public function test_weighted_and_any_rules(): void
+    public function test_must_be_known_validation_rule()
     {
-        $data = [
-            'email' => true,
-            'sms' => false,
-            'push' => true,
-        ];
-
-        $validator = Validator::make($data, [
-            'notification' => 'ternary_any_true:email,sms,push',
-            'decision' => 'ternary_weighted:email:2,sms:1,push:2',
-        ]);
-
+        $validator = Validator::make(['status' => 'yes'], ['status' => 'must_be_known']);
         $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(['status' => null], ['status' => 'must_be_known']);
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_all_must_be_true_validation_rule()
+    {
+        $validator = Validator::make(
+            ['checks' => [true, 'yes', 1]],
+            ['checks' => 'all_must_be_true']
+        );
+        $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(
+            ['checks' => [true, false, true]],
+            ['checks' => 'all_must_be_true']
+        );
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_any_must_be_true_validation_rule()
+    {
+        $validator = Validator::make(
+            ['methods' => [false, true, false]],
+            ['methods' => 'any_must_be_true']
+        );
+        $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(
+            ['methods' => [false, false, false]],
+            ['methods' => 'any_must_be_true']
+        );
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_majority_true_validation_rule()
+    {
+        $validator = Validator::make(
+            ['votes' => [true, true, false]],
+            ['votes' => 'majority_true']
+        );
+        $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(
+            ['votes' => [false, false, true]],
+            ['votes' => 'majority_true']
+        );
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_true_if_validation_rule()
+    {
+        $validator = Validator::make(
+            ['consent' => true, 'age' => 18],
+            ['consent' => 'true_if:age,18']
+        );
+        $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(
+            ['consent' => false, 'age' => 18],
+            ['consent' => 'true_if:age,18']
+        );
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_false_if_validation_rule()
+    {
+        $validator = Validator::make(
+            ['blocked' => false, 'status' => 'banned'],
+            ['blocked' => 'false_if:status,banned']
+        );
+        $this->assertFalse($validator->fails());
+        
+        $validator = Validator::make(
+            ['blocked' => true, 'status' => 'banned'],
+            ['blocked' => 'false_if:status,banned']
+        );
+        $this->assertTrue($validator->fails());
     }
 }

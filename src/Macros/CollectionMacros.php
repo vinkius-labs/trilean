@@ -3,119 +3,64 @@
 namespace VinkiusLabs\Trilean\Macros;
 
 use Illuminate\Support\Collection;
-use VinkiusLabs\Trilean\Enums\TernaryState;
-use VinkiusLabs\Trilean\Collections\TernaryVector;
 
 class CollectionMacros
 {
     public static function register(): void
     {
         /**
-         * Convert collection items to ternary states and get consensus.
-         * 
-         * @example collect($votes)->ternaryConsensus()
+         * Simple boolean aggregations.
          */
-        Collection::macro('ternaryConsensus', function () {
-            return TernaryVector::make($this->items)->consensus();
+        Collection::macro('allTrue', function () {
+            return and_all(...$this->all());
+        });
+
+        Collection::macro('anyTrue', function () {
+            return or_any(...$this->all());
         });
 
         /**
-         * Get majority decision from collection of values.
-         * 
-         * @example collect($healthChecks)->ternaryMajority()
+         * Filter by ternary states.
          */
-        Collection::macro('ternaryMajority', function () {
-            return TernaryVector::make($this->items)->majority();
+        Collection::macro('onlyTrue', function () {
+            return $this->filter(fn($item) => is_true($item));
+        });
+
+        Collection::macro('onlyFalse', function () {
+            return $this->filter(fn($item) => is_false($item));
+        });
+
+        Collection::macro('onlyUnknown', function () {
+            return $this->filter(fn($item) => is_unknown($item));
         });
 
         /**
-         * Filter collection by ternary state.
-         * 
-         * @example $users->whereTernaryTrue('verified')
+         * Convert all to safe booleans.
          */
-        Collection::macro('whereTernaryTrue', function (string $key) {
-            return $this->filter(fn($item) => ternary(data_get($item, $key))->isTrue());
-        });
-
-        Collection::macro('whereTernaryFalse', function (string $key) {
-            return $this->filter(fn($item) => ternary(data_get($item, $key))->isFalse());
-        });
-
-        Collection::macro('whereTernaryUnknown', function (string $key) {
-            return $this->filter(fn($item) => ternary(data_get($item, $key))->isUnknown());
+        Collection::macro('toBooleans', function (bool $defaultForUnknown = false) {
+            return $this->map(fn($item) => safe_bool($item, $defaultForUnknown));
         });
 
         /**
-         * Weighted decision from collection values.
-         * 
-         * @example collect($signals)->ternaryWeighted([3, 2, 1])
+         * Simple vote.
          */
-        Collection::macro('ternaryWeighted', function (array $weights = []) {
-            return trilean()->weighted($this->items, $weights);
+        Collection::macro('vote', function () {
+            return vote(...$this->all());
         });
 
         /**
-         * Map collection and apply ternary logic.
-         * 
-         * @example $users->ternaryMap(fn($u) => $u->active && $u->verified)
+         * Count by ternary states.
          */
-        Collection::macro('ternaryMap', function (callable $callback) {
-            return TernaryVector::make($this->map($callback));
+        Collection::macro('countTrue', function () {
+            return $this->filter(fn($item) => is_true($item))->count();
         });
 
-        /**
-         * Get ternary score of collection.
-         * 
-         * @example collect($checks)->ternaryScore()
-         */
-        Collection::macro('ternaryScore', function () {
-            return TernaryVector::make($this->items)->score();
+        Collection::macro('countFalse', function () {
+            return $this->filter(fn($item) => is_false($item))->count();
         });
 
-        /**
-         * Check if all items evaluate to TRUE.
-         * 
-         * @example collect($conditions)->allTernaryTrue()
-         */
-        Collection::macro('allTernaryTrue', function () {
-            return trilean()->and(...$this->items)->isTrue();
-        });
-
-        /**
-         * Check if any item evaluates to TRUE.
-         * 
-         * @example collect($fallbacks)->anyTernaryTrue()
-         */
-        Collection::macro('anyTernaryTrue', function () {
-            return trilean()->or(...$this->items)->isTrue();
-        });
-
-        /**
-         * Partition collection by ternary states.
-         * 
-         * @example list($true, $false, $unknown) = $collection->partitionTernary('status')
-         */
-        Collection::macro('partitionTernary', function (string $key) {
-            return [
-                $this->whereTernaryTrue($key),
-                $this->whereTernaryFalse($key),
-                $this->whereTernaryUnknown($key),
-            ];
-        });
-
-        /**
-         * Apply ternary gate to collection and return result.
-         * 
-         * @example $permissions->ternaryGate('and') // all must be true
-         */
-        Collection::macro('ternaryGate', function (string $operator = 'and') {
-            return match ($operator) {
-                'and' => trilean()->and(...$this->items),
-                'or' => trilean()->or(...$this->items),
-                'xor' => trilean()->xor(...$this->items),
-                'consensus' => trilean()->consensus($this->items),
-                default => TernaryState::UNKNOWN,
-            };
+        Collection::macro('countUnknown', function () {
+            return $this->filter(fn($item) => is_unknown($item))->count();
         });
     }
 }

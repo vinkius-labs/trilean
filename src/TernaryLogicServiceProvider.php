@@ -10,7 +10,6 @@ use VinkiusLabs\Trilean\Decision\TernaryDecisionEngine;
 use VinkiusLabs\Trilean\Macros\BuilderMacros;
 use VinkiusLabs\Trilean\Macros\CollectionMacros;
 use VinkiusLabs\Trilean\Macros\RequestMacros;
-use VinkiusLabs\Trilean\Services\CircuitBuilder;
 use VinkiusLabs\Trilean\Support\TernaryArithmetic;
 use VinkiusLabs\Trilean\Services\TernaryExpressionEvaluator;
 use VinkiusLabs\Trilean\Services\TernaryLogicService;
@@ -18,7 +17,7 @@ use VinkiusLabs\Trilean\Support\BalancedTernaryConverter;
 use VinkiusLabs\Trilean\Support\Gate\MacroableGate;
 use VinkiusLabs\Trilean\Support\GateMacros;
 use VinkiusLabs\Trilean\Support\Metrics\TernaryMetrics;
-use VinkiusLabs\Trilean\Validation\TernaryValidationRules;
+use VinkiusLabs\Trilean\Validation\ValidationRules;
 use VinkiusLabs\Trilean\View\BladeDirectives;
 
 class TernaryLogicServiceProvider extends ServiceProvider
@@ -53,10 +52,6 @@ class TernaryLogicServiceProvider extends ServiceProvider
             converter: $app->make(BalancedTernaryConverter::class)
         ));
 
-        $this->app->bind(CircuitBuilder::class, fn($app) => new CircuitBuilder(
-            logic: $app->make(TernaryLogicService::class)
-        ));
-
         $this->app->extend(GateContract::class, function ($gate, $app) {
             return $gate instanceof MacroableGate ? $gate : MacroableGate::fromGate($gate);
         });
@@ -64,11 +59,18 @@ class TernaryLogicServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Load helper functions
+        if (file_exists(__DIR__ . '/Helpers/functions.php')) {
+            require_once __DIR__ . '/Helpers/functions.php';
+        }
+
+        // Register macros and directives
         CollectionMacros::register();
         RequestMacros::register();
         BuilderMacros::register();
         BladeDirectives::register();
-        TernaryValidationRules::register();
+        ValidationRules::register();
+
         GateMacros::register();
         TernaryMetrics::boot();
 

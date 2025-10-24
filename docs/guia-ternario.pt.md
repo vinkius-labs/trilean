@@ -27,19 +27,20 @@ if ($user->verified && $user->email_confirmed && $user->terms_accepted) {
 return back()->with('error', 'Não é possível ativar a conta');
 ```
 
-**✅ Depois (clareza Trilean)**
+**✅ Depois (Trilean)**
 ```php
-if (all_true($user->verified, $user->email_confirmed, $user->terms_accepted)) {
+// Direto e óbvio
+if (and_all($user->verified, $user->email_confirmed, $user->terms_accepted)) {
     $user->activate();
     return redirect('/dashboard');
 }
 
-// Tratamento explícito de cada estado
-return maybe(
-    consensus($user->verified, $user->email_confirmed, $user->terms_accepted),
-    ifTrue: fn() => redirect('/dashboard'),
-    ifFalse: fn() => back()->with('error', 'Requisitos não atendidos'),
-    ifUnknown: fn() => redirect('/verificacao-pendente')
+// Tratamento claro de cada estado
+$decisao = vote($user->verified, $user->email_confirmed, $user->terms_accepted);
+return pick($decisao,
+    'true' => redirect('/dashboard'),
+    'false' => back()->with('error', 'Requisitos não atendidos'),
+    'tie' => redirect('/verificacao-pendente')
 );
 ```
 

@@ -3,62 +3,65 @@
 namespace VinkiusLabs\Trilean\Macros;
 
 use Illuminate\Http\Request;
-use VinkiusLabs\Trilean\Enums\TernaryState;
 
 class RequestMacros
 {
     public static function register(): void
     {
         /**
-         * Get ternary state from request input.
-         * 
-         * @example $request->ternary('consent')
+         * Direct boolean checks on request values.
          */
-        Request::macro('ternary', function (string $key, mixed $default = null) {
-            $value = $this->input($key, $default);
-            return TernaryState::fromMixed($value);
+        Request::macro('isTrue', function (string $key) {
+            return is_true($this->input($key));
+        });
+
+        Request::macro('isFalse', function (string $key) {
+            return is_false($this->input($key));
+        });
+
+        Request::macro('isUnknown', function (string $key) {
+            return is_unknown($this->input($key));
         });
 
         /**
-         * Check if request has a TRUE ternary value.
-         * 
-         * @example $request->hasTernaryTrue('verified')
+         * Pick value with defaults.
          */
-        Request::macro('hasTernaryTrue', function (string $key) {
-            return $this->ternary($key)->isTrue();
-        });
-
-        Request::macro('hasTernaryFalse', function (string $key) {
-            return $this->ternary($key)->isFalse();
-        });
-
-        Request::macro('hasTernaryUnknown', function (string $key) {
-            return $this->ternary($key)->isUnknown();
+        Request::macro('pick', function (string $key, mixed $ifTrue, mixed $ifFalse, mixed $ifUnknown = null) {
+            return pick($this->input($key), $ifTrue, $ifFalse, $ifUnknown);
         });
 
         /**
-         * Validate multiple ternary conditions from request.
-         * 
-         * @example $request->ternaryGate(['consent', 'verified', 'active'], 'and')
+         * Require specific ternary states.
          */
-        Request::macro('ternaryGate', function (array $keys, string $operator = 'and') {
-            $values = collect($keys)->map(fn($key) => $this->ternary($key));
+        Request::macro('requireTrue', function (string $key, string $message = null) {
+            require_true($this->input($key), $message ?? "Field {$key} must be true");
+            return $this;
+        });
 
-            return match ($operator) {
-                'and' => trilean()->and(...$values),
-                'or' => trilean()->or(...$values),
-                'consensus' => trilean()->consensus($values),
-                default => TernaryState::UNKNOWN,
-            };
+        Request::macro('requireNotFalse', function (string $key, string $message = null) {
+            require_not_false($this->input($key), $message ?? "Field {$key} cannot be false");
+            return $this;
         });
 
         /**
-         * Evaluate ternary expression from request data.
-         * 
-         * @example $request->ternaryExpression('consent AND !blocked')
+         * Check multiple fields at once.
          */
-        Request::macro('ternaryExpression', function (string $expression) {
-            return trilean()->expression($expression, $this->all());
+        Request::macro('allTrue', function (array $keys) {
+            $values = collect($keys)->map(fn($key) => $this->input($key))->all();
+            return and_all(...$values);
+        });
+
+        Request::macro('anyTrue', function (array $keys) {
+            $values = collect($keys)->map(fn($key) => $this->input($key))->all();
+            return or_any(...$values);
+        });
+
+        /**
+         * Vote on multiple fields.
+         */
+        Request::macro('vote', function (array $keys) {
+            $values = collect($keys)->map(fn($key) => $this->input($key))->all();
+            return vote(...$values);
         });
     }
 }

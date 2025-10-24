@@ -2,9 +2,7 @@
 
 namespace VinkiusLabs\Trilean\Tests;
 
-use Illuminate\Support\Collection;
 use Orchestra\Testbench\TestCase;
-use VinkiusLabs\Trilean\Enums\TernaryState;
 use VinkiusLabs\Trilean\TernaryLogicServiceProvider;
 
 class HelpersTest extends TestCase
@@ -14,61 +12,81 @@ class HelpersTest extends TestCase
         return [TernaryLogicServiceProvider::class];
     }
 
-    public function test_ternary_helper_converts_values()
+    public function test_is_true_identifies_truthy_values()
     {
-        $this->assertTrue(ternary(true)->isTrue());
-        $this->assertTrue(ternary(false)->isFalse());
-        $this->assertTrue(ternary(null)->isUnknown());
-        $this->assertSame('True', ternary(1)->label());
+        $this->assertTrue(is_true(true));
+        $this->assertTrue(is_true(1));
+        $this->assertTrue(is_true('yes'));
+        $this->assertFalse(is_true(false));
+        $this->assertFalse(is_true(null));
     }
 
-    public function test_maybe_helper_returns_correct_branch()
+    public function test_is_false_identifies_falsy_values()
     {
-        $this->assertSame('yes', maybe(true, 'yes', 'no', 'maybe'));
-        $this->assertSame('no', maybe(false, 'yes', 'no', 'maybe'));
-        $this->assertSame('maybe', maybe(null, 'yes', 'no', 'maybe'));
+        $this->assertTrue(is_false(false));
+        $this->assertTrue(is_false(0));
+        $this->assertTrue(is_false('no'));
+        $this->assertFalse(is_false(true));
+        $this->assertFalse(is_false(null));
     }
 
-    public function test_all_true_helper()
+    public function test_is_unknown_identifies_unknown_values()
     {
-        $this->assertTrue(all_true(true, 1, 'yes', 'true'));
-        $this->assertFalse(all_true(true, false, true));
-        $this->assertFalse(all_true(true, null, true));
+        $this->assertTrue(is_unknown(null));
+        $this->assertTrue(is_unknown('unknown'));
+        $this->assertTrue(is_unknown('pending'));
+        $this->assertTrue(is_unknown('maybe'));
+        $this->assertFalse(is_unknown(true));
+        $this->assertFalse(is_unknown(false));
+        $this->assertFalse(is_unknown('yes'));
+        $this->assertFalse(is_unknown('no'));
     }
 
-    public function test_any_true_helper()
+    public function test_and_all_logic()
     {
-        $this->assertTrue(any_true(false, null, true));
-        $this->assertTrue(any_true(true, false, false));
-        $this->assertFalse(any_true(false, false, false));
+        $this->assertTrue(and_all(true, 'yes', 1));
+        $this->assertFalse(and_all(true, false));
+        $this->assertFalse(and_all(true, null));
     }
 
-    public function test_consensus_helper()
+    public function test_or_any_logic()
     {
-        $this->assertSame(TernaryState::TRUE, consensus(true, true, true));
-        $this->assertSame(TernaryState::TRUE, consensus(true, false, true));
+        $this->assertTrue(or_any(false, true));
+        $this->assertTrue(or_any(null, 'yes'));
+        $this->assertFalse(or_any(false, false));
     }
 
-    public function test_when_ternary_executes_correct_callback()
+    public function test_pick_function()
     {
-        $result = when_ternary(
-            true,
-            fn() => 'executed_true',
-            fn() => 'executed_false',
-            fn() => 'executed_unknown'
-        );
-
-        $this->assertSame('executed_true', $result);
+        $this->assertEquals('Active', pick(true, 'Active', 'Inactive'));
+        $this->assertEquals('Inactive', pick(false, 'Active', 'Inactive'));
+        $this->assertEquals('Pending', pick(null, 'Active', 'Inactive', 'Pending'));
     }
 
-    public function test_ternary_match_helper()
+    public function test_vote_function()
     {
-        $result = ternary_match(true, [
-            'true' => 'Approved',
-            'false' => 'Rejected',
-            'unknown' => 'Pending',
-        ]);
+        $this->assertEquals('true', vote(true, true, false));
+        $this->assertEquals('false', vote(false, false, true));
+        $this->assertEquals('tie', vote(true, false));
+    }
 
-        $this->assertSame('Approved', $result);
+    public function test_safe_bool_conversion()
+    {
+        $this->assertTrue(safe_bool(true));
+        $this->assertFalse(safe_bool(false));
+        $this->assertFalse(safe_bool(null, false));
+        $this->assertTrue(safe_bool(null, true));
+    }
+
+    public function test_require_true_throws_when_not_true()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        require_true(false);
+    }
+
+    public function test_require_not_false_throws_when_false()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        require_not_false(false);
     }
 }

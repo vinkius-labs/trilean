@@ -4,7 +4,6 @@ namespace VinkiusLabs\Trilean\Tests;
 
 use Illuminate\Support\Collection;
 use Orchestra\Testbench\TestCase;
-use VinkiusLabs\Trilean\Enums\TernaryState;
 use VinkiusLabs\Trilean\TernaryLogicServiceProvider;
 
 class CollectionMacrosTest extends TestCase
@@ -14,95 +13,95 @@ class CollectionMacrosTest extends TestCase
         return [TernaryLogicServiceProvider::class];
     }
 
-    public function test_ternary_consensus_macro()
+    public function test_all_true_macro_works()
     {
-        $collection = collect([true, true, true]);
-        $this->assertSame(TernaryState::TRUE, $collection->ternaryConsensus());
-
-        $mixed = collect([true, false, null]);
-        $this->assertSame(TernaryState::UNKNOWN, $mixed->ternaryConsensus());
+        $collection = collect([true, 'yes', 1]);
+        $this->assertTrue($collection->allTrue());
+        
+        $collection = collect([true, false, true]);
+        $this->assertFalse($collection->allTrue());
     }
 
-    public function test_ternary_majority_macro()
+    public function test_any_true_macro_works()
+    {
+        $collection = collect([false, true, false]);
+        $this->assertTrue($collection->anyTrue());
+        
+        $collection = collect([false, false, false]);
+        $this->assertFalse($collection->anyTrue());
+    }
+
+    public function test_only_true_macro_filters_correctly()
+    {
+        $collection = collect([true, false, 'yes', 'no', null]);
+        $filtered = $collection->onlyTrue();
+        
+        $this->assertCount(2, $filtered);
+    }
+
+    public function test_only_false_macro_filters_correctly()
+    {
+        $collection = collect([true, false, 'yes', 'no', null]);
+        $filtered = $collection->onlyFalse();
+        
+        $this->assertCount(2, $filtered);
+    }
+
+    public function test_only_unknown_macro_filters_correctly()
+    {
+        $collection = collect([true, false, null, 'pending', 'yes']);
+        $filtered = $collection->onlyUnknown();
+        
+        $this->assertCount(2, $filtered);
+    }
+
+    public function test_to_booleans_macro_converts_collection()
+    {
+        $collection = collect([true, false, null]);
+        $booleans = $collection->toBooleans(false);
+        
+        $this->assertTrue($booleans[0]);
+        $this->assertFalse($booleans[1]);
+        $this->assertFalse($booleans[2]); // null -> false
+        
+        $booleansTrue = $collection->toBooleans(true);
+        $this->assertTrue($booleansTrue[2]); // null -> true
+    }
+
+    public function test_vote_macro_works()
     {
         $collection = collect([true, true, false]);
-        $this->assertSame(TernaryState::TRUE, $collection->ternaryMajority());
+        $result = $collection->vote();
+        
+        $this->assertEquals('true', $result);
+        
+        $collection = collect([true, false]);
+        $result = $collection->vote();
+        
+        $this->assertEquals('tie', $result);
     }
 
-    public function test_where_ternary_true_macro()
+    public function test_count_true_macro_works()
     {
-        $collection = collect([
-            ['verified' => true],
-            ['verified' => false],
-            ['verified' => null],
-        ]);
-
-        $filtered = $collection->whereTernaryTrue('verified');
-        $this->assertCount(1, $filtered);
+        $collection = collect([true, false, 'yes', 'no', null]);
+        $count = $collection->countTrue();
+        
+        $this->assertEquals(2, $count);
     }
 
-    public function test_ternary_score_macro()
+    public function test_count_false_macro_works()
     {
-        $collection = collect([true, false, null, true]);
-        $score = $collection->ternaryScore();
-
-        // true=+1, false=-1, null=0, true=+1 = 1
-        $this->assertSame(1, $score);
+        $collection = collect([true, false, 'yes', 'no', null]);
+        $count = $collection->countFalse();
+        
+        $this->assertEquals(2, $count);
     }
 
-    public function test_all_ternary_true_macro()
+    public function test_count_unknown_macro_works()
     {
-        $allTrue = collect([true, 1, 'yes']);
-        $this->assertTrue($allTrue->allTernaryTrue());
-
-        $mixed = collect([true, false, true]);
-        $this->assertFalse($mixed->allTernaryTrue());
-    }
-
-    public function test_any_ternary_true_macro()
-    {
-        $collection = collect([false, null, true]);
-        $this->assertTrue($collection->anyTernaryTrue());
-
-        $allFalse = collect([false, 0, 'no']);
-        $this->assertFalse($allFalse->anyTernaryTrue());
-    }
-
-    public function test_partition_ternary_macro()
-    {
-        $collection = collect([
-            ['status' => true],
-            ['status' => false],
-            ['status' => null],
-            ['status' => true],
-        ]);
-
-        [$trueItems, $falseItems, $unknownItems] = $collection->partitionTernary('status');
-
-        $this->assertCount(2, $trueItems);
-        $this->assertCount(1, $falseItems);
-        $this->assertCount(1, $unknownItems);
-    }
-
-    public function test_ternary_gate_macro()
-    {
-        $andGate = collect([true, true, true]);
-        $this->assertSame(TernaryState::TRUE, $andGate->ternaryGate('and'));
-
-        $orGate = collect([false, false, true]);
-        $this->assertSame(TernaryState::TRUE, $orGate->ternaryGate('or'));
-    }
-
-    public function test_additional_macros_cover_weighted_and_map()
-    {
-        $collection = collect([true, false, true]);
-        $weighted = $collection->ternaryWeighted([3, -2, 1]);
-        $this->assertSame(TernaryState::TRUE, $weighted);
-
-        $mapped = $collection->ternaryMap(fn($value) => $value)->consensus();
-        $this->assertSame(TernaryState::TRUE, $mapped);
-
-        $xorGate = collect([true, false, false])->ternaryGate('xor');
-        $this->assertSame(TernaryState::UNKNOWN, $xorGate);
+        $collection = collect([true, false, null, 'pending']);
+        $count = $collection->countUnknown();
+        
+        $this->assertEquals(2, $count);
     }
 }

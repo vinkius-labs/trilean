@@ -6,21 +6,21 @@
 
 ## Table of Contents
 
-1. [Core Enum](#core-enum)
-2. [Global Helpers](#global-helpers)
-3. [Fluent API](#fluent-api)
-4. [Decision Engine](#decision-engine)
-5. [Domain Helpers](#domain-helpers)
-6. [Collection Macros](#collection-macros)
-7. [Request Macros](#request-macros)
-8. [Eloquent Macros](#eloquent-macros)
-9. [Blade Directives](#blade-directives)
-10. [Validation Rules](#validation-rules)
-11. [Middleware](#middleware)
-12. [Gate Integration](#gate-integration)
-13. [Traits](#traits)
-14. [Advanced Features](#advanced-features)
-15. [Console Commands](#console-commands)
+1. [Core Enum](#-core-enum)
+2. [Global Helpers](#-global-helpers)
+3. [Fluent API](#-fluent-api)
+4. [Decision Engine](#-decision-engine)
+5. [Domain Helpers](#-domain-helpers)
+6. [Collection Macros](#-collection-macros)
+7. [Request Macros](#-request-macros)
+8. [Eloquent Macros](#️-eloquent-macros)
+9. [Blade Directives](#-blade-directives)
+10. [Validation Rules](#-validation-rules)
+11. [Middleware](#️-middleware)
+12. [Gate Integration](#-gate-integration)
+13. [Traits](#-traits)
+14. [Advanced Features](#-advanced-features)
+15. [Console Commands](#-console-commands)
 
 ---
 

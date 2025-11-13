@@ -39,34 +39,59 @@ class TernaryDecisionEngine
     public function evaluate(array $blueprint, array $context = []): TernaryDecisionReport
     {
         // Check cache if memoization is enabled
-        if ($this->memoizeEnabled || config('trilean.cache.enabled', false)) {
-            $cacheKey = $this->getCacheKey($blueprint, $context);
-
-            if (isset(self::$cache[$cacheKey])) {
-                $cached = self::$cache[$cacheKey];
-
-                // Check TTL if configured
-                $ttl = config('trilean.cache.ttl', 3600);
-                if ($cached['expires_at'] > time()) {
-                    return $cached['report'];
-                }
-
-                // Expired - remove from cache
-                unset(self::$cache[$cacheKey]);
-            }
+        $cachedReport = $this->getCachedReport($blueprint, $context);
+        if ($cachedReport) {
+            return $cachedReport;
         }
 
         $startedAt = microtime(true);
         $inputs = $this->resolveInputs($blueprint['inputs'] ?? [], $context);
-        $decisions = Collection::make();
+        $decisions = $this->evaluateGates($blueprint['gates'] ?? [], $inputs, $context);
 
-        foreach ($blueprint['gates'] ?? [] as $name => $gate) {
+        $resultState = $this->determineResultState($blueprint, $inputs, $decisions);
+        $encoded = $this->logic->encode($decisions->map(fn(TernaryDecision $decision) => $decision->state));
+        $metadata = $this->buildMetadata($blueprint, $decisions, $startedAt);
+
+        $report = new TernaryDecisionReport($resultState, $decisions, $encoded, $metadata);
+
+        $this->dispatchMetricsEvent($report, $context, $blueprint);
+        $this->cacheReport($blueprint, $context, $report);
+
+        return $report;
+    }
+
+    private function getCachedReport(array $blueprint, array $context): ?TernaryDecisionReport
+    {
+        if (!$this->memoizeEnabled && !config('trilean.cache.enabled', false)) {
+            return null;
+        }
+
+        $cacheKey = $this->getCacheKey($blueprint, $context);
+
+        if (!isset(self::$cache[$cacheKey])) {
+            return null;
+        }
+
+        $cached = self::$cache[$cacheKey];
+        $ttl = config('trilean.cache.ttl', 3600);
+
+        if ($cached['expires_at'] > time()) {
+            return $cached['report'];
+        }
+
+        // Expired - remove from cache
+        unset(self::$cache[$cacheKey]);
+        return null;
+    }
+
+    private function evaluateGates(array $gates, Collection $inputs, array $context): Collection
+    {
+        return Collection::make($gates)->reduce(function ($decisions, $gate, $name) use ($inputs, $context) {
             $operator = strtolower($gate['operator'] ?? 'and');
             $operands = $gate['operands'] ?? [];
             $description = $gate['description'] ?? null;
 
             $values = $this->resolveOperands($operands, $inputs, $decisions);
-
             $expressionContext = array_merge($context, $inputs->toArray());
 
             $state = match ($operator) {
@@ -94,38 +119,47 @@ class TernaryDecisionEngine
 
             $inputs[$decision->name] = $decision->state;
             $decisions->push($decision);
-        }
 
+            return $decisions;
+        }, Collection::make());
+    }
+
+    private function determineResultState(array $blueprint, Collection $inputs, Collection $decisions): TernaryState
+    {
         $outputKey = $blueprint['output'] ?? ($decisions->last()?->name ?? 'result');
-        $resultState = TernaryState::fromMixed($inputs[$outputKey] ?? $decisions->last()?->state ?? TernaryState::UNKNOWN);
+        return TernaryState::fromMixed($inputs[$outputKey] ?? $decisions->last()?->state ?? TernaryState::UNKNOWN);
+    }
 
-        $encoded = $this->logic->encode($decisions->map(fn(TernaryDecision $decision) => $decision->state));
-
-        $metadata = [
+    private function buildMetadata(array $blueprint, Collection $decisions, float $startedAt): array
+    {
+        return [
             'duration_ms' => round((microtime(true) - $startedAt) * 1000, 3),
             'total_gates' => $decisions->count(),
             'blueprint' => $blueprint['name'] ?? $blueprint['id'] ?? null,
         ];
+    }
 
-        $report = new TernaryDecisionReport($resultState, $decisions, $encoded, $metadata);
-
+    private function dispatchMetricsEvent(TernaryDecisionReport $report, array $context, array $blueprint): void
+    {
         if (config('trilean.metrics.enabled', false)) {
             event(new TernaryDecisionEvaluated($report, $context, $blueprint));
         }
+    }
 
-        // Cache the result if memoization is enabled
-        if ($this->memoizeEnabled || config('trilean.cache.enabled', false)) {
-            $cacheKey = $this->getCacheKey($blueprint, $context);
-            $ttl = config('trilean.cache.ttl', 3600);
-
-            self::$cache[$cacheKey] = [
-                'report' => $report,
-                'expires_at' => time() + $ttl,
-                'cached_at' => time(),
-            ];
+    private function cacheReport(array $blueprint, array $context, TernaryDecisionReport $report): void
+    {
+        if (!$this->memoizeEnabled && !config('trilean.cache.enabled', false)) {
+            return;
         }
 
-        return $report;
+        $cacheKey = $this->getCacheKey($blueprint, $context);
+        $ttl = config('trilean.cache.ttl', 3600);
+
+        self::$cache[$cacheKey] = [
+            'report' => $report,
+            'expires_at' => time() + $ttl,
+            'cached_at' => time(),
+        ];
     }
 
     /**
@@ -149,31 +183,28 @@ class TernaryDecisionEngine
 
     private function resolveOperands(array $operands, Collection $inputs, Collection $decisions): array
     {
-        return Collection::make($operands)
-            ->map(function ($operand) use ($inputs, $decisions) {
-                if (is_callable($operand)) {
-                    return $this->logic->normalise($operand($inputs, $decisions));
-                }
+        return array_map(function ($operand) use ($inputs, $decisions) {
+            if (is_callable($operand)) {
+                return $this->logic->normalise($operand($inputs, $decisions));
+            }
 
-                if (is_string($operand)) {
-                    if (str_starts_with($operand, '!')) {
-                        $resolved = $this->resolveKey(substr($operand, 1), $inputs, $decisions);
-
-                        return $resolved->invert();
-                    }
-
-                    if (str_starts_with($operand, '@')) {
-                        $expression = substr($operand, 1);
-
-                        return $this->logic->expression($expression, $inputs->all());
-                    }
-
-                    return $this->resolveKey($operand, $inputs, $decisions);
-                }
-
+            if (!is_string($operand)) {
                 return $this->logic->normalise($operand);
-            })
-            ->all();
+            }
+
+            // Handle string operands
+            if (str_starts_with($operand, '!')) {
+                $resolved = $this->resolveKey(substr($operand, 1), $inputs, $decisions);
+                return $resolved->invert();
+            }
+
+            if (str_starts_with($operand, '@')) {
+                $expression = substr($operand, 1);
+                return $this->logic->expression($expression, $inputs->all());
+            }
+
+            return $this->resolveKey($operand, $inputs, $decisions);
+        }, $operands);
     }
 
     private function resolveKey(string $key, Collection $inputs, Collection $decisions): TernaryState

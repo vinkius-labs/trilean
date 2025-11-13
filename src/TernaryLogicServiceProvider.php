@@ -60,8 +60,9 @@ class TernaryLogicServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Load helper functions
-        if (file_exists(__DIR__ . '/Helpers/functions.php')) {
-            require_once __DIR__ . '/Helpers/functions.php';
+        $helpersPath = __DIR__ . '/Helpers/functions.php';
+        if (file_exists($helpersPath)) {
+            require_once $helpersPath;
         }
 
         // Register macros and directives

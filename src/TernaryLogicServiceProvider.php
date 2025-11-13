@@ -90,27 +90,35 @@ class TernaryLogicServiceProvider extends ServiceProvider
             __DIR__ . '/../config/trilean.php' => $this->app->configPath('trilean.php'),
         ], 'trilean-config');
 
-        $resources = [];
+        collect([
+            'trilean-resources' => $this->getResourcesToPublish(),
+            'trilean-playground' => $this->getPlaygroundToPublish(),
+        ])->filter()->each(function ($items, $tag) {
+            $this->publishes($items, $tag);
+        });
+    }
 
-        foreach (config('trilean.presets', []) as $preset) {
-            foreach ($preset['resources'] ?? [] as $source => $destination) {
-                $resources[$source] = $this->app->basePath($destination);
-            }
-        }
+    private function getResourcesToPublish(): array
+    {
+        return collect(config('trilean.presets', []))
+            ->pluck('resources')
+            ->filter()
+            ->map(function ($presetResources) {
+                return collect($presetResources)->map(function ($destination) {
+                    return $this->app->basePath($destination);
+                });
+            })
+            ->collapse()
+            ->toArray();
+    }
 
-        if (! empty($resources)) {
-            $this->publishes($resources, 'trilean-resources');
-        }
-
-        $playground = [];
-
-        foreach (config('trilean.playground', []) as $source => $destination) {
-            $playground[$source] = $this->app->basePath($destination);
-        }
-
-        if (! empty($playground)) {
-            $this->publishes($playground, 'trilean-playground');
-        }
+    private function getPlaygroundToPublish(): array
+    {
+        return collect(config('trilean.playground', []))
+            ->map(function ($destination) {
+                return $this->app->basePath($destination);
+            })
+            ->toArray();
     }
 
     private function registerCommands(): void

@@ -437,7 +437,7 @@ if (!function_exists('ternary_coalesce')) {
      * 
      * @example ternary_coalesce($value, default: 'true', ifNull: 'unknown')
      */
-    function ternary_coalesce(mixed $value, string|bool $default = false, string|bool $ifNull = null): mixed
+    function ternary_coalesce(mixed $value, string|bool $default = false, string|bool|null $ifNull = null): mixed
     {
         if ($value === null && $ifNull !== null) {
             return is_string($ifNull)
